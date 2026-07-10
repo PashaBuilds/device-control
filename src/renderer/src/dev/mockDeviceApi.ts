@@ -63,8 +63,9 @@ function createMock(config: DeviceConfig): MockDevice {
 for (const cfg of loadConfigs()) devices.set(cfg.id, createMock(cfg))
 
 function num(resp: string | null): number {
-  const m = (resp ?? '').match(/-?[\d.]+/)
-  return m ? Number(m[0]) : 0
+  // "V1 5.000" gibi yanıtlarda ilk sayı kanal numarasıdır; her zaman SON sayıyı al
+  const matches = (resp ?? '').match(/-?[\d.]+/g)
+  return matches && matches.length > 0 ? Number(matches[matches.length - 1]) : 0
 }
 
 function ask(dev: MockDevice, cmd: string): string | null {
