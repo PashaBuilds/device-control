@@ -135,8 +135,8 @@ export class ScpiConnection extends EventEmitter {
     }, this.timeoutMs)
   }
 
-  private onData(data: Buffer): void {
-    this.buffer += data.toString('ascii')
+  private onData(data: Buffer | string): void {
+    this.buffer += typeof data === 'string' ? data : data.toString('ascii')
     let idx: number
     while ((idx = this.buffer.indexOf('\n')) >= 0) {
       const line = this.buffer.slice(0, idx).replace(/\r$/, '')
