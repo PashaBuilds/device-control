@@ -39,7 +39,8 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
-  manager = new DeviceManager({ dataDir: app.getPath('userData') })
+  // DC_DATA_DIR: test/otomasyon için veri dizini override'ı
+  manager = new DeviceManager({ dataDir: process.env.DC_DATA_DIR || app.getPath('userData') })
   registerIpcHandlers(manager)
   createWindow()
 

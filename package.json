@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "sim": "tsx tools/simulator/cli.ts",
-    "dist:win": "electron-vite build && electron-builder --win --x64"
+    "dist:win": "electron-vite build && electron-builder --win --x64",
+    "e2e": "tsx tools/e2e/smoke.ts"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.2.7",
@@ -32,6 +33,7 @@
     "electron": "^43.1.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
+    "puppeteer-core": "^25.3.0",
     "tsx": "^4.23.0",
     "typescript": "^7.0.2",
     "vite": "^7.3.6",
