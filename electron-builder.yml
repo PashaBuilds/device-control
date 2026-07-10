@@ -1,0 +1,31 @@
+appId: com.mpcukur.devicecontrol
+productName: Cihaz Kontrol
+copyright: © 2026 Mert Cukur
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**
+  - package.json
+
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  shortcutName: Cihaz Kontrol
+
+portable:
+  artifactName: CihazKontrol-${version}-portable.exe
+
+# Kod imzalama v1 kapsamı dışında (SmartScreen uyarısı normaldir)
+forceCodeSigning: false
