@@ -1,5 +1,7 @@
+/// <reference lib="dom" />
 /**
  * Uçtan uca duman testi: gerçek Electron uygulaması + gerçek TCP simülatörleri.
+ * (DOM lib referansı: page.evaluate callback'leri tarayıcı bağlamında koşar.)
  *
  * Akış:
  *  1. İki CPX400DP simülatörü başlat (9221, 9222)
