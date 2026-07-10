@@ -14,5 +14,10 @@
     "useDefineForClassFields": true,
     "paths": { "@shared/*": ["./src/shared/*"] }
   },
-  "include": ["src/renderer/src/**/*", "src/shared/**/*.ts", "src/preload/index.d.ts"]
+  "include": [
+    "src/renderer/src/**/*",
+    "src/shared/**/*.ts",
+    "src/preload/index.d.ts",
+    "tools/simulator/model.ts"
+  ]
 }

@@ -1,0 +1,479 @@
+/* ---------------------------------------------------------------------------
+   Cihaz Kontrol — tasarım değişkenleri
+   Estetik: "hassas enstrüman" — derin mavi-siyah zemin, ince hatlar,
+   camgöbeği (gerilim) / amber (akım) renk kodlaması, tabular rakamlar.
+--------------------------------------------------------------------------- */
+
+:root {
+  /* Zemin katmanları */
+  --bg-app: #0a0e15;
+  --bg-panel: #0f141d;
+  --bg-raised: #131a26;
+  --bg-inset: #070b11;
+  --bg-hover: #182130;
+
+  /* Çizgiler */
+  --line: #1c2534;
+  --line-strong: #263248;
+  --line-focus: #3d5a80;
+
+  /* Metin */
+  --text-1: #e8edf5;
+  --text-2: #93a1b8;
+  --text-3: #55637c;
+
+  /* Anlam renkleri */
+  --volt: #5ec1f2; /* gerilim / CV */
+  --volt-dim: rgba(94, 193, 242, 0.14);
+  --amp: #f2b356; /* akım / CC */
+  --amp-dim: rgba(242, 179, 86, 0.14);
+  --ok: #43dd9a; /* bağlı, çıkış açık */
+  --ok-dim: rgba(67, 221, 154, 0.12);
+  --warn: #f2b356;
+  --danger: #ff5d5d;
+  --danger-dim: rgba(255, 93, 93, 0.12);
+  --accent: #5ec1f2;
+
+  /* Tipografi */
+  --font-ui: 'IBM Plex Sans', sans-serif;
+  --font-label: 'IBM Plex Sans Condensed', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  /* Ölçüler */
+  --radius: 10px;
+  --radius-sm: 6px;
+  --sidebar-w: 264px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-1);
+  background: var(--bg-app);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+input,
+button,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 5px;
+  border: 2px solid var(--bg-app);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* --------------------------------- Genel ------------------------------- */
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.panel-label {
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+/* LED durum noktası */
+.led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-3);
+  flex-shrink: 0;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.led.on {
+  background: var(--ok);
+  box-shadow: 0 0 6px rgba(67, 221, 154, 0.7);
+}
+.led.busy {
+  background: var(--amp);
+  box-shadow: 0 0 6px rgba(242, 179, 86, 0.7);
+  animation: led-pulse 1s ease-in-out infinite;
+}
+.led.err {
+  background: var(--danger);
+  box-shadow: 0 0 6px rgba(255, 93, 93, 0.7);
+}
+@keyframes led-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Düğmeler */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--bg-raised);
+  color: var(--text-1);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--line-focus);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+.btn.primary {
+  background: rgba(94, 193, 242, 0.12);
+  border-color: rgba(94, 193, 242, 0.45);
+  color: var(--volt);
+}
+.btn.primary:hover {
+  background: rgba(94, 193, 242, 0.2);
+}
+.btn.danger {
+  background: var(--danger-dim);
+  border-color: rgba(255, 93, 93, 0.45);
+  color: var(--danger);
+}
+.btn.danger:hover {
+  background: rgba(255, 93, 93, 0.2);
+}
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-2);
+}
+.btn.ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+/* Form alanları */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field label {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.field input,
+.field select {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--bg-inset);
+  color: var(--text-1);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.field input:focus,
+.field select:focus {
+  border-color: var(--line-focus);
+}
+.field .error-text {
+  font-size: 11.5px;
+  color: var(--danger);
+}
+
+/* ------------------------------ Uygulama kabuğu ------------------------ */
+
+.app {
+  display: flex;
+  height: 100%;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  /* teknik çizim hissi: seyrek nokta ızgarası */
+  background-image: radial-gradient(rgba(148, 170, 200, 0.055) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* ------------------------------- Kenar çubuğu -------------------------- */
+
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--line);
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.sidebar-brand .logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, #14263a, #0d1826);
+  border: 1px solid var(--line-strong);
+  color: var(--volt);
+}
+.sidebar-brand .name {
+  font-family: var(--font-label);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.sidebar-brand .sub {
+  font-size: 10.5px;
+  color: var(--text-3);
+  letter-spacing: 0.06em;
+}
+
+.sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 10px;
+}
+
+.category {
+  margin-bottom: 18px;
+}
+.category-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 8px;
+}
+.category-head .count {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 1px 7px;
+}
+
+.device-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  text-align: left;
+  color: var(--text-1);
+  transition: background 0.12s, border-color 0.12s;
+  position: relative;
+}
+.device-row:hover {
+  background: var(--bg-hover);
+}
+.device-row.selected {
+  background: var(--bg-raised);
+  border-color: var(--line-strong);
+}
+.device-row .info {
+  flex: 1;
+  min-width: 0;
+}
+.device-row .dev-name {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.device-row .dev-addr {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+  margin-top: 1px;
+}
+.device-row .remove {
+  opacity: 0;
+  color: var(--text-3);
+  padding: 4px;
+  border-radius: 4px;
+  transition: opacity 0.12s, color 0.12s;
+}
+.device-row:hover .remove {
+  opacity: 1;
+}
+.device-row .remove:hover {
+  color: var(--danger);
+}
+
+.add-device {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--line-strong);
+  color: var(--text-2);
+  font-size: 12.5px;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.add-device:hover {
+  border-color: var(--line-focus);
+  color: var(--text-1);
+  background: var(--bg-hover);
+}
+
+.sidebar-foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 10.5px;
+  color: var(--text-3);
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+}
+
+/* -------------------------------- Boş durum ---------------------------- */
+
+.empty-state {
+  flex: 1;
+  display: grid;
+  place-items: center;
+}
+.empty-state .inner {
+  text-align: center;
+  max-width: 380px;
+  animation: rise 0.45s ease both;
+}
+.empty-state .glyph {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 18px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, #14263a, #0d1826);
+  border: 1px solid var(--line-strong);
+  color: var(--volt);
+}
+.empty-state h2 {
+  font-family: var(--font-label);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.empty-state p {
+  color: var(--text-2);
+  line-height: 1.55;
+  margin-bottom: 20px;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* --------------------------------- Diyalog ----------------------------- */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 12, 0.66);
+  backdrop-filter: blur(3px);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  animation: fade 0.15s ease both;
+}
+.dialog {
+  width: 420px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  animation: rise 0.2s ease both;
+}
+.dialog-head {
+  padding: 16px 18px 0;
+}
+.dialog-head h3 {
+  font-family: var(--font-label);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.dialog-body {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.dialog-foot {
+  padding: 0 18px 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.dialog .row-2 {
+  display: grid;
+  grid-template-columns: 1fr 120px;
+  gap: 12px;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
