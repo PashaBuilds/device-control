@@ -5,6 +5,8 @@ import { tr } from '../../i18n/tr'
 import { useAppStore } from '../../state/store'
 import { TopBar } from './TopBar'
 import { ChannelCard } from './ChannelCard'
+import { TrendChart } from './TrendChart'
+import { ScpiConsole } from '../ScpiConsole'
 
 export function PsuPanel({ device }: { device: DeviceConfig }): React.JSX.Element {
   const snapshot = useAppStore((s) => s.snapshots[device.id])
@@ -40,6 +42,7 @@ export function PsuPanel({ device }: { device: DeviceConfig }): React.JSX.Elemen
 
   const connected = snapshot?.state === 'connected'
   const api = window.deviceApi
+  const [consoleOpen, setConsoleOpen] = useState(false)
 
   return (
     <div className="psu-panel">
@@ -65,6 +68,7 @@ export function PsuPanel({ device }: { device: DeviceConfig }): React.JSX.Elemen
         </div>
       )}
 
+      <div className="panel-scroll">
       {!connected && (
         <div className="not-connected-note">
           {snapshot?.error ? snapshot.error : tr.panel.notConnected}
@@ -115,6 +119,27 @@ export function PsuPanel({ device }: { device: DeviceConfig }): React.JSX.Elemen
             onToggleOutput={(on) => run(() => api.setOutput(device.id, ch, on))}
           />
         ))}
+      </div>
+
+      <TrendChart deviceId={device.id} deviceName={device.name} channelCount={typeInfo.channelCount} />
+      </div>
+
+      <div className="console-toggle-row">
+        <button className="toggle-btn" onClick={() => setConsoleOpen((o) => !o)}>
+          <svg
+            className={`chevron${consoleOpen ? ' open' : ''}`}
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+          >
+            <path d="M2 6.5 5 3.5l3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>
+          {tr.console.title}
+        </button>
+        {consoleOpen && (
+          <ScpiConsole deviceId={device.id} connected={connected} onError={showError} />
+        )}
       </div>
 
       {toast && <div className="toast">{toast}</div>}
