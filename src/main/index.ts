@@ -1,5 +1,9 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
+import { DeviceManager } from './deviceManager'
+import { registerIpcHandlers } from './ipcHandlers'
+
+let manager: DeviceManager | null = null
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -35,6 +39,8 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  manager = new DeviceManager({ dataDir: app.getPath('userData') })
+  registerIpcHandlers(manager)
   createWindow()
 
   app.on('activate', () => {
@@ -44,4 +50,8 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('before-quit', () => {
+  void manager?.dispose()
 })
