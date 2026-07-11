@@ -1,6 +1,6 @@
 {
   "name": "cihaz-kontrol",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "TCP/IP üzerinden laboratuvar cihazlarını kontrol eden masaüstü uygulaması",
   "main": "out/main/index.js",
   "author": "Mert Cukur",

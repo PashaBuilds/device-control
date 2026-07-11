@@ -8,6 +8,7 @@ interface Props {
   onDisconnect: () => Promise<void>
   onAllOutputs: (on: boolean) => Promise<void>
   onTracking: (on: boolean) => Promise<void>
+  onToggleLock: () => Promise<void>
 }
 
 function ledClass(state: ConnectionState | undefined): string {
@@ -24,10 +25,19 @@ function ledClass(state: ConnectionState | undefined): string {
   }
 }
 
-export function TopBar({ device, snapshot, onConnect, onDisconnect, onAllOutputs, onTracking }: Props): React.JSX.Element {
+export function TopBar({
+  device,
+  snapshot,
+  onConnect,
+  onDisconnect,
+  onAllOutputs,
+  onTracking,
+  onToggleLock
+}: Props): React.JSX.Element {
   const state = snapshot?.state ?? 'disconnected'
   const connected = state === 'connected'
   const busy = state === 'connecting' || state === 'reconnecting'
+  const locked = device.locked === true
 
   return (
     <header className="topbar">
@@ -36,12 +46,35 @@ export function TopBar({ device, snapshot, onConnect, onDisconnect, onAllOutputs
         <div className="idn">{connected && snapshot?.identity ? snapshot.identity : `${device.host}:${device.port}`}</div>
       </div>
 
+      <button
+        className={`lock-btn${locked ? ' locked' : ''}`}
+        title={locked ? tr.panel.lockHintOn : tr.panel.lockHintOff}
+        onClick={() => void onToggleLock()}
+        aria-pressed={locked}
+      >
+        {locked ? (
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <rect x="2.5" y="6" width="9" height="6.5" rx="1.5" fill="currentColor" opacity="0.25" />
+            <rect x="2.5" y="6" width="9" height="6.5" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+            <path d="M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6" stroke="currentColor" strokeWidth="1.4" />
+            <circle cx="7" cy="9.2" r="1.1" fill="currentColor" />
+          </svg>
+        ) : (
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <rect x="2.5" y="6" width="9" height="6.5" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+            <path d="M9.5 6V4.5a2.5 2.5 0 0 0-5 0" stroke="currentColor" strokeWidth="1.4" />
+          </svg>
+        )}
+        {locked ? tr.panel.locked : tr.panel.lock}
+      </button>
+
       {connected && (
         <>
           <button
             className="switch-label"
-            title={tr.panel.trackingHint}
+            title={locked ? tr.panel.lockHintOn : tr.panel.trackingHint}
             onClick={() => void onTracking(!snapshot?.tracking)}
+            disabled={locked}
           >
             <span className={`switch${snapshot?.tracking ? ' on' : ''}`} />
             {tr.panel.tracking}

@@ -104,6 +104,15 @@ export class DeviceManager extends EventEmitter {
     return { dev, driver: dev.driver }
   }
 
+  /** Ayar kilidi etkinken setpoint değiştiren komutları engeller. */
+  private requireUnlocked(id: string): { dev: ManagedDevice; driver: PsuDriver } {
+    const res = this.requireDriver(id)
+    if (res.dev.config.locked) {
+      throw new Error('Ayar kilidi etkin — değerleri değiştirmek için kilidi açın')
+    }
+    return res
+  }
+
   private persist(): void {
     this.store.save([...this.devices.values()].map((d) => d.config))
   }
@@ -357,25 +366,25 @@ export class DeviceManager extends EventEmitter {
   // ---- Kontrol komutları ----
 
   async setVoltage(id: string, ch: number, volts: number): Promise<void> {
-    const { dev, driver } = this.requireDriver(id)
+    const { dev, driver } = this.requireUnlocked(id)
     await driver.setVoltage(ch, volts)
     await this.afterSet(dev, ch)
   }
 
   async setCurrent(id: string, ch: number, amps: number): Promise<void> {
-    const { dev, driver } = this.requireDriver(id)
+    const { dev, driver } = this.requireUnlocked(id)
     await driver.setCurrent(ch, amps)
     await this.afterSet(dev, ch)
   }
 
   async setOvp(id: string, ch: number, volts: number): Promise<void> {
-    const { dev, driver } = this.requireDriver(id)
+    const { dev, driver } = this.requireUnlocked(id)
     await driver.setOvp(ch, volts)
     await this.afterSet(dev, ch)
   }
 
   async setOcp(id: string, ch: number, amps: number): Promise<void> {
-    const { dev, driver } = this.requireDriver(id)
+    const { dev, driver } = this.requireUnlocked(id)
     await driver.setOcp(ch, amps)
     await this.afterSet(dev, ch)
   }
@@ -395,7 +404,7 @@ export class DeviceManager extends EventEmitter {
   }
 
   async setTracking(id: string, on: boolean): Promise<void> {
-    const { dev, driver } = this.requireDriver(id)
+    const { dev, driver } = this.requireUnlocked(id)
     await driver.setTracking(on)
     dev.tracking = await driver.readTracking()
     this.publish(dev)

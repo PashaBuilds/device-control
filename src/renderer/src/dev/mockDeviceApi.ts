@@ -149,6 +149,14 @@ function requireConnected(id: string): MockDevice {
   return dev
 }
 
+function requireUnlocked(id: string): MockDevice {
+  const dev = requireConnected(id)
+  if (dev.config.locked) {
+    throw new Error('Ayar kilidi etkin — değerleri değiştirmek için kilidi açın')
+  }
+  return dev
+}
+
 async function afterSet(dev: MockDevice): Promise<void> {
   const eer = num(ask(dev, 'EER?'))
   publish(dev)
@@ -200,22 +208,22 @@ const mockApi = {
     publish(dev)
   },
   async setVoltage(id: string, ch: number, v: number): Promise<void> {
-    const dev = requireConnected(id)
+    const dev = requireUnlocked(id)
     ask(dev, `V${ch} ${v.toFixed(3)}`)
     await afterSet(dev)
   },
   async setCurrent(id: string, ch: number, a: number): Promise<void> {
-    const dev = requireConnected(id)
+    const dev = requireUnlocked(id)
     ask(dev, `I${ch} ${a.toFixed(3)}`)
     await afterSet(dev)
   },
   async setOvp(id: string, ch: number, v: number): Promise<void> {
-    const dev = requireConnected(id)
+    const dev = requireUnlocked(id)
     ask(dev, `OVP${ch} ${v.toFixed(3)}`)
     await afterSet(dev)
   },
   async setOcp(id: string, ch: number, a: number): Promise<void> {
-    const dev = requireConnected(id)
+    const dev = requireUnlocked(id)
     ask(dev, `OCP${ch} ${a.toFixed(3)}`)
     await afterSet(dev)
   },
@@ -230,7 +238,7 @@ const mockApi = {
     await afterSet(dev)
   },
   async setTracking(id: string, on: boolean): Promise<void> {
-    const dev = requireConnected(id)
+    const dev = requireUnlocked(id)
     ask(dev, `CONFIG ${on ? 0 : 2}`)
     publish(dev)
   },

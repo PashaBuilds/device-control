@@ -106,7 +106,7 @@ export function Sidebar(): React.JSX.Element {
       </div>
 
       <div className="sidebar-foot">
-        <span>v0.1.0</span>
+        <span>{typeof __APP_VERSION__ !== 'undefined' ? `v${__APP_VERSION__}` : ''}</span>
         <span>TCP/IP</span>
       </div>
 

@@ -43,6 +43,12 @@ export function PsuPanel({ device }: { device: DeviceConfig }): React.JSX.Elemen
   const connected = snapshot?.state === 'connected'
   const api = window.deviceApi
   const [consoleOpen, setConsoleOpen] = useState(false)
+  const locked = device.locked === true
+
+  const toggleLock = useCallback(async () => {
+    await api.updateDevice({ ...device, locked: !device.locked })
+    await useAppStore.getState().refreshDevices()
+  }, [api, device])
 
   return (
     <div className="psu-panel">
@@ -53,6 +59,7 @@ export function PsuPanel({ device }: { device: DeviceConfig }): React.JSX.Elemen
         onDisconnect={() => run(() => api.disconnect(device.id))}
         onAllOutputs={(on) => run(() => api.setAllOutputs(device.id, on))}
         onTracking={(on) => run(() => api.setTracking(device.id, on))}
+        onToggleLock={() => run(toggleLock)}
       />
 
       {snapshot && snapshot.trips.length > 0 && (
@@ -82,6 +89,7 @@ export function PsuPanel({ device }: { device: DeviceConfig }): React.JSX.Elemen
             channel={ch}
             typeInfo={typeInfo}
             connected={connected}
+            locked={locked}
             measurement={
               snapshot?.channels[ch - 1] ?? {
                 voltage: 0,
