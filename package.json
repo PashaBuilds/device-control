@@ -1,6 +1,6 @@
 {
   "name": "cihaz-kontrol",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "TCP/IP üzerinden laboratuvar cihazlarını kontrol eden masaüstü uygulaması",
   "main": "out/main/index.js",
   "author": "Mert Cukur",
@@ -18,6 +18,7 @@
     "sim:lynq": "tsx tools/simulator/smartlynq-cli.ts"
   },
   "dependencies": {
+    "@fontsource/chakra-petch": "^5.2.7",
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "@fontsource/ibm-plex-sans": "^5.2.8",
     "@fontsource/ibm-plex-sans-condensed": "^5.2.8",
