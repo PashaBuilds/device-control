@@ -6,6 +6,7 @@ import type {
   ConnectionState,
   DeviceConfig,
   DeviceSnapshot,
+  ProbeInfo,
   TripInfo
 } from '@shared/types'
 import { deviceTypeInfo } from '@shared/types'
@@ -34,6 +35,7 @@ interface ManagedDevice {
   setpoints: ChannelSetpoints[]
   tracking: boolean
   trips: TripInfo[]
+  probe: ProbeInfo | null
   pollTimer: NodeJS.Timeout | null
   pollBusy: boolean
   pollCount: number
@@ -83,6 +85,7 @@ export class DeviceManager extends EventEmitter {
       setpoints: Array.from({ length: info.channelCount }, emptySetpoints),
       tracking: false,
       trips: [],
+      probe: null,
       pollTimer: null,
       pollBusy: false,
       pollCount: 0,
@@ -127,6 +130,7 @@ export class DeviceManager extends EventEmitter {
       setpoints: dev.setpoints.map((s) => ({ ...s })),
       tracking: dev.tracking,
       trips: dev.trips.map((t) => ({ ...t })),
+      probe: dev.probe ? { ...dev.probe, services: [...dev.probe.services], jtagTargets: [...dev.probe.jtagTargets] } : null,
       timestamp: Date.now()
     }
   }

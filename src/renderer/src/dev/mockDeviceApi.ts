@@ -113,6 +113,7 @@ function snapshot(dev: MockDevice): DeviceSnapshot {
     setpoints,
     tracking: ask(dev, 'CONFIG?') === '0',
     trips: [...dev.trips],
+    probe: null,
     timestamp: Date.now()
   }
 }

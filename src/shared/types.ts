@@ -1,5 +1,5 @@
-export type DeviceKind = 'cpx400dp'
-export type DeviceCategory = 'power-supply'
+export type DeviceKind = 'cpx400dp' | 'smartlynq'
+export type DeviceCategory = 'power-supply' | 'debug-probe'
 
 export interface DeviceTypeInfo {
   kind: DeviceKind
@@ -24,6 +24,17 @@ export const DEVICE_TYPES: DeviceTypeInfo[] = [
     maxOvp: 66,
     maxOcp: 22,
     defaultPort: 9221
+  },
+  {
+    kind: 'smartlynq',
+    category: 'debug-probe',
+    label: 'Xilinx SmartLynq (hw_server)',
+    channelCount: 0,
+    maxVoltage: 0,
+    maxCurrent: 0,
+    maxOvp: 0,
+    maxOcp: 0,
+    defaultPort: 3121
   }
 ]
 
@@ -71,6 +82,16 @@ export interface TripInfo {
   kind: 'ovp' | 'ocp' | 'other'
 }
 
+/** Debug probu (TCF/hw_server) bağlantısında toplanan bilgiler. */
+export interface ProbeInfo {
+  /** Karşı tarafın Hello ile bildirdiği TCF servisleri */
+  services: string[]
+  /** Locator getAgentID yanıtı (destekleniyorsa) */
+  agentId: string | null
+  /** Jtag servisi üzerinden sıralanabilen hedefler (destekleniyorsa) */
+  jtagTargets: string[]
+}
+
 export interface DeviceSnapshot {
   id: string
   state: ConnectionState
@@ -80,6 +101,8 @@ export interface DeviceSnapshot {
   setpoints: ChannelSetpoints[]
   tracking: boolean
   trips: TripInfo[]
+  /** Yalnızca debug-probe kategorisindeki cihazlarda dolu */
+  probe: ProbeInfo | null
   timestamp: number
 }
 
