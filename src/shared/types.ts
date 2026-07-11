@@ -118,6 +118,16 @@ export interface DeviceSnapshot {
 /** Trafiğin kaynağı: kullanıcı eylemi mi, arka plan yoklaması mı. */
 export type LogSource = 'user' | 'poll'
 
+/** Ağ keşfinde bulunan bir cihaz (henüz eklenmemiş olabilir). */
+export interface DiscoveredDevice {
+  host: string
+  port: number
+  kind: DeviceKind
+  label: string
+  identity: string | null
+  mac: string | null
+}
+
 export interface ScpiLogEntry {
   deviceId: string
   dir: 'tx' | 'rx'

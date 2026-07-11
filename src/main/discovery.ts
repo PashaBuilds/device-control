@@ -1,25 +1,18 @@
 import net from 'node:net'
 import os from 'node:os'
 import { exec } from 'node:child_process'
-import type { DeviceKind } from '@shared/types'
+import type { DeviceKind, DiscoveredDevice } from '@shared/types'
 import { DEVICE_TYPES } from '@shared/types'
 import { ScpiConnection } from './scpi/connection'
 import { TcfConnection } from './tcf/connection'
+
+export type { DiscoveredDevice }
 
 /**
  * Ağ keşfi: yerel alt ağ(lar)ı bilinen cihaz portlarında tarar, açık portları
  * ilgili protokolle yoklayıp cihaz türünü doğrular. Yalnızca kullanıcı isteğiyle
  * (Keşfet düğmesi) çalışır — arka planda otomatik tarama yapılmaz.
  */
-
-export interface DiscoveredDevice {
-  host: string
-  port: number
-  kind: DeviceKind
-  label: string
-  identity: string | null
-  mac: string | null
-}
 
 export interface PortSpec {
   port: number
