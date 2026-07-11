@@ -169,7 +169,22 @@ async function main(): Promise<void> {
     const svcCount = await page.evaluate(() => document.querySelectorAll('.chip').length)
     if (svcCount < 3) fail(`TCF servis çipleri beklenirdi, ${svcCount} bulundu`)
     ok(`TCF servisleri listelendi (${svcCount} çip)`)
+    // JTAG zinciri görselleştirmesi
+    await waitForText(page, 'arm_dap', 10000)
+    await waitForText(page, '0x23731093', 10000)
+    const nodeCount = await page.evaluate(() => document.querySelectorAll('.jtag-node').length)
+    if (nodeCount !== 2) fail(`JTAG zincirinde 2 düğüm beklenirdi, ${nodeCount} bulundu`)
+    ok(`JTAG zinciri çizildi (${nodeCount} hedef, IDCODE/IR görünür)`)
     await shot(page, '06-smartlynq')
+
+    // Ağ keşif diyaloğu (mock canned sonuç)
+    const discoverBtn = await page.waitForSelector('.discover-btn')
+    await discoverBtn!.click()
+    await waitForText(page, 'cihaz bulundu', 8000)
+    const discovered = await page.evaluate(() => document.querySelectorAll('.discovered-row').length)
+    if (discovered < 2) fail(`Keşifte en az 2 sonuç beklenirdi, ${discovered} bulundu`)
+    ok(`Ağ keşfi çalıştı (${discovered} cihaz listelendi)`)
+    await shot(page, '07-kesif')
 
     console.log('\nDuman testi BAŞARILI — görüntüler: ' + SHOTS)
   } catch (err) {

@@ -3,6 +3,7 @@ import { DEVICE_TYPES, type ConnectionState, type DeviceCategory } from '@shared
 import { tr } from '../i18n/tr'
 import { useAppStore } from '../state/store'
 import { AddDeviceDialog } from './AddDeviceDialog'
+import { DiscoverDialog } from './DiscoverDialog'
 
 function ledClass(state: ConnectionState | undefined): string {
   switch (state) {
@@ -23,6 +24,7 @@ const CATEGORY_ORDER: DeviceCategory[] = ['power-supply', 'debug-probe']
 export function Sidebar(): React.JSX.Element {
   const { devices, snapshots, selectedId, select, removeDevice } = useAppStore()
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [discoverOpen, setDiscoverOpen] = useState(false)
 
   const byCategory = CATEGORY_ORDER.map((cat) => ({
     cat,
@@ -55,6 +57,15 @@ export function Sidebar(): React.JSX.Element {
           <div className="sub">{tr.appSubtitle}</div>
         </div>
       </div>
+
+      <button className="discover-btn" onClick={() => setDiscoverOpen(true)}>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M11 11l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <circle cx="7" cy="7" r="1.6" fill="currentColor" />
+        </svg>
+        {tr.sidebar.discover}
+      </button>
 
       <div className="sidebar-body">
         {byCategory.map(({ cat, items }) => (
@@ -111,6 +122,7 @@ export function Sidebar(): React.JSX.Element {
       </div>
 
       {dialogOpen && <AddDeviceDialog onClose={() => setDialogOpen(false)} />}
+      {discoverOpen && <DiscoverDialog onClose={() => setDiscoverOpen(false)} />}
     </aside>
   )
 }

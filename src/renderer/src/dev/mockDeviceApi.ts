@@ -38,7 +38,10 @@ interface MockDevice {
 const MOCK_PROBE: ProbeInfo = {
   services: ['Locator', 'Jtag', 'JtagCable', 'JtagDevice', 'Memory', 'RunControl', 'Xicom', 'stapl'],
   agentId: 'sim-dlc20-agent-0001',
-  jtagTargets: ['xc7z045']
+  jtagTargets: [
+    { name: 'arm_dap', idCode: '0x4ba00477', irLen: 4 },
+    { name: 'xc7z045', idCode: '0x23731093', irLen: 6 }
+  ]
 }
 
 type SnapshotCb = (s: DeviceSnapshot) => void
@@ -200,6 +203,28 @@ async function afterSet(dev: MockDevice): Promise<void> {
 const mockApi = {
   async listDevices(): Promise<DeviceConfig[]> {
     return [...devices.values()].map((d) => ({ ...d.config }))
+  },
+  async discover() {
+    // Tarayıcı modu gerçek ağ taraması yapamaz — örnek keşif sonucu döndürür
+    await new Promise((r) => setTimeout(r, 1400))
+    return [
+      {
+        host: '192.168.1.50',
+        port: 9221,
+        kind: 'cpx400dp' as const,
+        label: 'Aim-TTi CPX400DP',
+        identity: 'THURLBY THANDAR, CPX400DP, 0, 1.00',
+        mac: '00:1b:3f:2a:9c:14'
+      },
+      {
+        host: '192.168.1.60',
+        port: 3121,
+        kind: 'smartlynq' as const,
+        label: 'Xilinx SmartLynq (hw_server)',
+        identity: 'Xilinx hw_server (TCF) — 8 servis',
+        mac: '00:0a:35:1f:6b:22'
+      }
+    ]
   },
   async listSnapshots(): Promise<DeviceSnapshot[]> {
     return [...devices.values()].map(snapshot)

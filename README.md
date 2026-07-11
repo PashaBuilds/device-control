@@ -25,6 +25,10 @@ yanına yenileri eklenebilir.
 - **SCPI konsolu**: ham komut gönderme + tüm trafiğin zaman damgalı kaydı.
 - **Dayanıklılık**: bağlantı kopunca üstel geri çekilme ile otomatik yeniden bağlanma;
   set komutları cihaz tarafında `EER?` ile doğrulanır.
+- **Ağ keşfi**: "Ağı Tara" ile yerel alt ağdaki CPX400DP (9221) ve SmartLynq (3121)
+  cihazlarını otomatik bulma; tür/IP/MAC ile listeleme ve tek tıkla ekleme.
+- **JTAG zinciri görselleştirme** (SmartLynq): zinciri TDI→cihaz→TDO şeması olarak,
+  her hedefin IDCODE ve IR uzunluğuyla + canlı sağlık göstergesiyle gösterme.
 
 ## Geliştirme (macOS/Linux/Windows)
 

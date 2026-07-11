@@ -82,6 +82,15 @@ export interface TripInfo {
   kind: 'ovp' | 'ocp' | 'other'
 }
 
+/** JTAG zincirindeki tek bir hedef (cihaz). */
+export interface JtagTarget {
+  name: string
+  /** IDCODE (destekleniyorsa), ör. "0x23731093" */
+  idCode: string | null
+  /** Instruction Register uzunluğu (destekleniyorsa) */
+  irLen: number | null
+}
+
 /** Debug probu (TCF/hw_server) bağlantısında toplanan bilgiler. */
 export interface ProbeInfo {
   /** Karşı tarafın Hello ile bildirdiği TCF servisleri */
@@ -89,7 +98,7 @@ export interface ProbeInfo {
   /** Locator getAgentID yanıtı (destekleniyorsa) */
   agentId: string | null
   /** Jtag servisi üzerinden sıralanabilen hedefler (destekleniyorsa) */
-  jtagTargets: string[]
+  jtagTargets: JtagTarget[]
 }
 
 export interface DeviceSnapshot {
@@ -108,6 +117,16 @@ export interface DeviceSnapshot {
 
 /** Trafiğin kaynağı: kullanıcı eylemi mi, arka plan yoklaması mı. */
 export type LogSource = 'user' | 'poll'
+
+/** Ağ keşfinde bulunan bir cihaz (henüz eklenmemiş olabilir). */
+export interface DiscoveredDevice {
+  host: string
+  port: number
+  kind: DeviceKind
+  label: string
+  identity: string | null
+  mac: string | null
+}
 
 export interface ScpiLogEntry {
   deviceId: string

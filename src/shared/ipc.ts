@@ -1,8 +1,10 @@
-import type { DeviceConfig, DeviceSnapshot, ScpiLogEntry } from './types'
+import type { DeviceConfig, DeviceSnapshot, DiscoveredDevice, ScpiLogEntry } from './types'
 
 /** Renderer'a preload üzerinden açılan köprünün tam sözleşmesi. */
 export interface DeviceApi {
   listDevices(): Promise<DeviceConfig[]>
+  /** Yerel ağı tarayıp desteklenen cihazları bulur (yalnızca istek üzerine). */
+  discover(): Promise<DiscoveredDevice[]>
   addDevice(cfg: Omit<DeviceConfig, 'id'>): Promise<DeviceConfig>
   updateDevice(cfg: DeviceConfig): Promise<void>
   removeDevice(id: string): Promise<void>
@@ -24,6 +26,7 @@ export interface DeviceApi {
 /** invoke kanalları: `dc:<metod>`; event kanalları aşağıda. */
 export const IPC_INVOKE_METHODS = [
   'listDevices',
+  'discover',
   'addDevice',
   'updateDevice',
   'removeDevice',
