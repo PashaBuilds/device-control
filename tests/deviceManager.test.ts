@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { startCpx400dpSim, SimHandle } from '../tools/simulator/cpx400dp-sim'
+import { startSmartLynqSim } from '../tools/simulator/smartlynq-sim'
 import { DeviceManager } from '../src/main/deviceManager'
 import type { DeviceSnapshot } from '../src/shared/types'
 
@@ -169,6 +170,43 @@ describe('DeviceManager (simülatöre karşı)', () => {
     await manager.updateDevice({ ...cfg, locked: false })
     await manager.setVoltage(id, 1, 5)
     expect(sim.sim.channels[0].vSet).toBe(5)
+  })
+
+  it('smartlynq cihazına bağlanır, probe bilgisi yayınlar, PSU komutlarını reddeder', async () => {
+    const lynq = await startSmartLynqSim(0)
+    try {
+      const cfg = await manager.addDevice({
+        name: 'Lynq 1',
+        kind: 'smartlynq',
+        host: '127.0.0.1',
+        port: lynq.port
+      })
+      const connectedSnap = waitForSnapshot(
+        manager,
+        (s) => s.id === cfg.id && s.state === 'connected' && s.probe !== null
+      )
+      await manager.connect(cfg.id)
+      const snap = await connectedSnap
+      expect(snap.probe!.services).toContain('Jtag')
+      expect(snap.probe!.agentId).toMatch(/sim/i)
+      expect(snap.probe!.jtagTargets).toContain('xc7z045')
+      expect(snap.identity).toContain('hw_server')
+      expect(snap.channels).toHaveLength(0)
+
+      // PSU'ya özgü komutlar bu türde reddedilir
+      await expect(manager.setVoltage(cfg.id, 1, 5)).rejects.toThrow(/desteklenmiyor/i)
+      await expect(manager.setAllOutputs(cfg.id, true)).rejects.toThrow(/desteklenmiyor/i)
+
+      // Ham TCF komutu konsoldan çalışır
+      const reply = await manager.sendRaw(cfg.id, 'Locator getAgentID')
+      expect(reply).toContain('sim')
+
+      const disconnected = waitForSnapshot(manager, (s) => s.id === cfg.id && s.state === 'disconnected')
+      await manager.disconnect(cfg.id)
+      await disconnected
+    } finally {
+      await lynq.close()
+    }
   })
 
   it('bağlantı koptuğunda reconnecting durumuna geçer ve sunucu dönünce bağlanır', async () => {
