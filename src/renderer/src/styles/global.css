@@ -1050,3 +1050,67 @@ button {
   color: var(--line-strong);
   pointer-events: none;
 }
+
+/* ------------------------------ Probe paneli ---------------------------- */
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  padding: 16px 20px;
+}
+.info-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 40%), var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: opacity 0.2s;
+}
+.info-card.wide {
+  grid-column: 1 / -1;
+}
+.info-card.dim {
+  opacity: 0.6;
+}
+.info-value-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+}
+.info-value {
+  font-size: 15px;
+  color: var(--text-1);
+  word-break: break-all;
+  user-select: text;
+}
+.info-hint {
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.5;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  color: var(--text-2);
+}
+.chip.target {
+  color: var(--volt);
+  background: var(--volt-dim);
+  border-color: rgba(94, 193, 242, 0.4);
+  font-size: 12px;
+  padding: 4px 11px;
+}

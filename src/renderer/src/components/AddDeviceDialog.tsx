@@ -23,6 +23,11 @@ export function AddDeviceDialog({ onClose }: { onClose: () => void }): React.JSX
 
   useEffect(() => nameRef.current?.focus(), [])
 
+  // Tür değişince o türün varsayılan portunu getir
+  useEffect(() => {
+    setPort(String(typeInfo.defaultPort))
+  }, [typeInfo.defaultPort])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onClose()

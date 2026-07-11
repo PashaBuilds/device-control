@@ -78,6 +78,20 @@ export const tr = {
     }
   },
 
+  probe: {
+    vivado: 'Vivado / hw_server Bağlantısı',
+    vivadoHint: 'Vivado Hardware Manager → Open Target → bu adresi girin',
+    copy: 'Kopyala',
+    copied: 'Kopyalandı ✓',
+    agent: 'Agent Kimliği',
+    services: 'TCF Servisleri',
+    jtag: 'JTAG Zinciri',
+    jtagEmpty: 'JTAG hedefi bildirilmedi — zincir boş olabilir ya da cihaz taramayı desteklemiyor.',
+    servicesEmpty: 'Servis bilgisi bağlantı kurulunca gelir.',
+    consoleTitle: 'TCF Konsolu',
+    consolePlaceholder: 'Komut girin — ör. Locator getAgentID  veya  Jtag getChildren ""  (Enter: gönder, ↑↓: geçmiş)'
+  },
+
   chart: {
     title: 'Trend',
     window1m: '1 dk',
