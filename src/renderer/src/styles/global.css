@@ -1461,3 +1461,117 @@ button {
   font-size: 12.5px;
   line-height: 1.55;
 }
+
+/* ------------------------- JTAG zinciri şeması -------------------------- */
+
+.jtag-card .jtag-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.jtag-health {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--ok);
+}
+
+.jtag-chain {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow-x: auto;
+  padding: 6px 2px 4px;
+}
+.jtag-port {
+  align-self: center;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  padding: 6px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.jtag-wire {
+  align-self: center;
+  min-width: 24px;
+  flex: 0 0 24px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(94, 193, 242, 0.25), rgba(94, 193, 242, 0.6));
+  position: relative;
+}
+/* akış noktası */
+.jtag-wire::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--volt);
+  box-shadow: 0 0 8px var(--glow-volt);
+  transform: translateY(-50%);
+  animation: jtag-flow 1.8s linear infinite;
+}
+@keyframes jtag-flow {
+  from {
+    left: 0;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  to {
+    left: 100%;
+    opacity: 0;
+  }
+}
+.jtag-node-group {
+  display: flex;
+  align-items: stretch;
+}
+.jtag-node {
+  flex-shrink: 0;
+  min-width: 150px;
+  background: linear-gradient(180deg, rgba(94, 193, 242, 0.08), rgba(94, 193, 242, 0.02));
+  border: 1px solid rgba(94, 193, 242, 0.35);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  box-shadow: 0 0 20px -8px var(--glow-volt), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  animation: stage-in 0.4s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+.jtag-node-name {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #d9f1ff;
+  margin-bottom: 7px;
+  letter-spacing: 0.02em;
+}
+.jtag-node-attr {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.jtag-node-attr .k {
+  color: var(--text-3);
+  font-family: var(--font-label);
+  letter-spacing: 0.06em;
+}
+.jtag-node-attr .v {
+  color: var(--text-1);
+  font-size: 11.5px;
+}

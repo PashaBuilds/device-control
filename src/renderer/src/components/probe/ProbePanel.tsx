@@ -114,15 +114,41 @@ export function ProbePanel({ device }: { device: DeviceConfig }): React.JSX.Elem
             </div>
           </section>
 
-          <section className={`info-card${connected ? '' : ' dim'}`}>
-            <div className="panel-label">{tr.probe.jtag}</div>
+          <section className={`info-card wide jtag-card${connected ? '' : ' dim'}`}>
+            <div className="jtag-header">
+              <span className="panel-label">{tr.probe.jtag}</span>
+              {probe && probe.jtagTargets.length > 0 && (
+                <span className="jtag-health">
+                  <span className="led on" />
+                  {tr.probe.jtagHealthy} · {tr.probe.jtagCount(probe.jtagTargets.length)}
+                </span>
+              )}
+            </div>
             {probe && probe.jtagTargets.length > 0 ? (
-              <div className="chip-row">
-                {probe.jtagTargets.map((t) => (
-                  <span key={t.name} className="chip target">
-                    {t.name}
-                  </span>
+              <div className="jtag-chain">
+                <span className="jtag-port">TDI</span>
+                <span className="jtag-wire" />
+                {probe.jtagTargets.map((t, i) => (
+                  <div key={t.name} className="jtag-node-group">
+                    <div className="jtag-node" style={{ animationDelay: `${i * 80}ms` }}>
+                      <div className="jtag-node-name">{t.name}</div>
+                      {t.idCode && (
+                        <div className="jtag-node-attr">
+                          <span className="k">{tr.probe.idcode}</span>
+                          <span className="v mono">{t.idCode}</span>
+                        </div>
+                      )}
+                      {t.irLen != null && (
+                        <div className="jtag-node-attr">
+                          <span className="k">{tr.probe.irlen}</span>
+                          <span className="v mono">{t.irLen} bit</span>
+                        </div>
+                      )}
+                    </div>
+                    <span className="jtag-wire" />
+                  </div>
                 ))}
+                <span className="jtag-port">TDO</span>
               </div>
             ) : (
               <div className="info-hint">{connected ? tr.probe.jtagEmpty : tr.probe.servicesEmpty}</div>
