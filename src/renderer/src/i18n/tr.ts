@@ -104,6 +104,9 @@ export const tr = {
 
   console: {
     title: 'SCPI Konsolu',
+    showPolling: 'Yoklama trafiğini göster',
+    showPollingHint:
+      'Uygulamanın ölçüm/durum için arka planda gönderdiği komutları da listeler (varsayılan: gizli)',
     placeholder: 'Komut girin — ör. *IDN? veya V1 12.5  (Enter: gönder, ↑↓: geçmiş)',
     open: 'Konsolu Aç',
     close: 'Konsolu Kapat',

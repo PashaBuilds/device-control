@@ -30,6 +30,8 @@ interface ManagedDevice {
   config: DeviceConfig
   conn: ScpiConnection | null
   driver: PsuDriver | null
+  /** Yoklama trafiği için 'poll' etiketli sürücü (aynı bağlantı) */
+  pollDriver: PsuDriver | null
   tcf: TcfConnection | null
   probeDriver: SmartLynqDriver | null
   state: ConnectionState
@@ -82,6 +84,7 @@ export class DeviceManager extends EventEmitter {
       config,
       conn: null,
       driver: null,
+      pollDriver: null,
       tcf: null,
       probeDriver: null,
       state: 'disconnected',
@@ -204,6 +207,7 @@ export class DeviceManager extends EventEmitter {
       dev.conn.disconnect()
       dev.conn = null
       dev.driver = null
+      dev.pollDriver = null
     }
     dev.state = phase
     dev.error = null
@@ -225,14 +229,22 @@ export class DeviceManager extends EventEmitter {
 
     dev.conn = conn
     dev.driver = createDriver(dev.config.kind, conn)
-    conn.on('log', (e: { dir: 'tx' | 'rx'; line: string }) =>
-      this.emit('log', { deviceId: dev.config.id, dir: e.dir, line: e.line, timestamp: Date.now() })
+    dev.pollDriver = createDriver(dev.config.kind, conn, 'poll')
+    conn.on('log', (e: { dir: 'tx' | 'rx'; line: string; source: 'user' | 'poll' }) =>
+      this.emit('log', {
+        deviceId: dev.config.id,
+        dir: e.dir,
+        line: e.line,
+        source: e.source,
+        timestamp: Date.now()
+      })
     )
     conn.on('close', () => {
       if (dev.userDisconnected || this.disposed) return
       this.stopPolling(dev)
       dev.conn = null
       dev.driver = null
+      dev.pollDriver = null
       dev.error = 'Bağlantı koptu'
       this.scheduleReconnect(dev)
     })
@@ -271,8 +283,14 @@ export class DeviceManager extends EventEmitter {
     this.publish(dev)
 
     const tcf = new TcfConnection(dev.config.host, dev.config.port)
-    tcf.on('log', (e: { dir: 'tx' | 'rx'; line: string }) =>
-      this.emit('log', { deviceId: dev.config.id, dir: e.dir, line: e.line, timestamp: Date.now() })
+    tcf.on('log', (e: { dir: 'tx' | 'rx'; line: string; source: 'user' | 'poll' }) =>
+      this.emit('log', {
+        deviceId: dev.config.id,
+        dir: e.dir,
+        line: e.line,
+        source: e.source,
+        timestamp: Date.now()
+      })
     )
     try {
       await tcf.connect()
@@ -344,6 +362,7 @@ export class DeviceManager extends EventEmitter {
       dev.conn.disconnect()
       dev.conn = null
       dev.driver = null
+      dev.pollDriver = null
     }
     if (dev.tcf) {
       dev.tcf.removeAllListeners()
@@ -375,10 +394,10 @@ export class DeviceManager extends EventEmitter {
 
   private async poll(dev: ManagedDevice): Promise<void> {
     if (this.isProbe(dev)) return this.pollProbe(dev)
-    if (dev.pollBusy || !dev.driver || !dev.conn?.connected) return
+    if (dev.pollBusy || !dev.pollDriver || !dev.conn?.connected) return
     dev.pollBusy = true
     try {
-      const driver = dev.driver
+      const driver = dev.pollDriver
       for (let ch = 1; ch <= driver.channelCount; ch++) {
         const m = await driver.readChannel(ch)
         const sp = dev.setpoints[ch - 1]
@@ -414,6 +433,7 @@ export class DeviceManager extends EventEmitter {
           this.stopPolling(dev)
           dev.conn = null
           dev.driver = null
+          dev.pollDriver = null
           dev.error = 'Cihaz yanıt vermiyor'
           this.scheduleReconnect(dev)
         }
@@ -427,7 +447,7 @@ export class DeviceManager extends EventEmitter {
   private async pollProbe(dev: ManagedDevice): Promise<void> {
     if (dev.pollBusy || !dev.probeDriver || !dev.tcf?.connected) return
     dev.pollCount++
-    if (dev.pollCount % 4 !== 0) return
+    if (dev.pollCount % 30 !== 0) return
     dev.pollBusy = true
     try {
       await dev.probeDriver.ping()
@@ -538,7 +558,7 @@ export class DeviceManager extends EventEmitter {
       const m = command.trim().match(/^(\S+)\s+(\S+)(?:\s+([\s\S]+))?$/)
       if (!m) throw new Error('Biçim: <Servis> <komut> [JSON argüman] — ör. Jtag getChildren ""')
       const args = m[3] ? [m[3].trim()] : []
-      const reply = await dev.tcf.command(m[1], m[2], ...args)
+      const reply = await dev.tcf.command(m[1], m[2], args)
       return reply.length > 0 ? reply.join(' ') : 'OK'
     }
     const { dev: psuDev } = this.requireDriver(id)
@@ -559,6 +579,7 @@ export class DeviceManager extends EventEmitter {
       dev.conn?.disconnect()
       dev.conn = null
       dev.driver = null
+      dev.pollDriver = null
       dev.tcf?.removeAllListeners()
       dev.tcf?.disconnect()
       dev.tcf = null

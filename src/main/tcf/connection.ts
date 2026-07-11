@@ -48,11 +48,14 @@ export interface TcfConnectionOptions {
   timeoutMs?: number
 }
 
+export type LogSource = 'user' | 'poll'
+
 interface PendingCommand {
   resolve: (args: string[]) => void
   reject: (err: Error) => void
   timer: NodeJS.Timeout
   label: string
+  source: LogSource
 }
 
 export class TcfConnection extends EventEmitter {
@@ -98,13 +101,13 @@ export class TcfConnection extends EventEmitter {
       socket.once('connect', () => {
         // Kendi Hello'muzu gönder (Locator servisi sunuyoruz)
         socket.write(encodeTcfMessage(['E', 'Locator', 'Hello', '["Locator"]']))
-        this.emit('log', { dir: 'tx', line: 'E Locator Hello ["Locator"]' })
+        this.emit('log', { dir: 'tx', line: 'E Locator Hello ["Locator"]', source: 'user' })
       })
 
       socket.on('data', (d: Buffer | string) => {
         const buf = typeof d === 'string' ? Buffer.from(d) : d
         for (const msg of this.decoder.push(buf)) {
-          this.emit('log', { dir: 'rx', line: msg.join(' ') })
+          this.emit('log', { dir: 'rx', line: msg.join(' '), source: this.sourceOf(msg) })
           if (!this._connected) {
             // İlk beklenen mesaj: karşı tarafın Hello olayı
             if (msg[0] === 'E' && msg[1] === 'Locator' && msg[2] === 'Hello') {
@@ -130,6 +133,14 @@ export class TcfConnection extends EventEmitter {
     })
   }
 
+  /** Gelen mesajın hangi kaynağa ait olduğunu (token eşleşmesiyle) bulur. */
+  private sourceOf(msg: string[]): LogSource {
+    if (msg[0] === 'R' || msg[0] === 'P' || msg[0] === 'N') {
+      return this.pending.get(msg[1])?.source ?? 'user'
+    }
+    return 'user'
+  }
+
   private dispatch(msg: string[]): void {
     const [type] = msg
     if (type === 'R' || type === 'P') {
@@ -153,7 +164,12 @@ export class TcfConnection extends EventEmitter {
   }
 
   /** TCF komutu gönderir; yanıt argümanlarını (JSON metinleri) döndürür. */
-  command(service: string, name: string, ...args: string[]): Promise<string[]> {
+  command(
+    service: string,
+    name: string,
+    args: string[] = [],
+    source: LogSource = 'user'
+  ): Promise<string[]> {
     return new Promise((resolve, reject) => {
       if (!this._connected || !this.socket) {
         reject(new Error('disconnected'))
@@ -165,10 +181,10 @@ export class TcfConnection extends EventEmitter {
         this.pending.delete(token)
         reject(new Error(`timeout: "${label}" ${this.timeoutMs}ms içinde yanıtlanmadı`))
       }, this.timeoutMs)
-      this.pending.set(token, { resolve, reject, timer, label })
+      this.pending.set(token, { resolve, reject, timer, label, source })
       const parts = ['C', token, service, name, ...args]
       this.socket.write(encodeTcfMessage(parts))
-      this.emit('log', { dir: 'tx', line: parts.join(' ') })
+      this.emit('log', { dir: 'tx', line: parts.join(' '), source })
     })
   }
 

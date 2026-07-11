@@ -1114,3 +1114,24 @@ button {
   font-size: 12px;
   padding: 4px 11px;
 }
+
+/* Konsol: yoklama trafiği anahtarı ve soluk poll satırları */
+.poll-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.poll-toggle:hover {
+  color: var(--text-2);
+}
+.poll-toggle input {
+  accent-color: var(--volt);
+}
+.scpi-line.poll {
+  opacity: 0.5;
+}
