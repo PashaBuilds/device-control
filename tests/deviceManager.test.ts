@@ -140,6 +140,37 @@ describe('DeviceManager (simülatöre karşı)', () => {
     expect(JSON.parse(readFileSync(join(dir, 'devices.json'), 'utf8'))).toEqual([])
   })
 
+  it('kilitliyken setpoint komutları reddedilir, çıkış kontrolü çalışır', async () => {
+    const id = await addAndConnect()
+    await waitForSnapshot(manager, (s) => s.state === 'connected')
+    const cfg = (await manager.listDevices())[0]
+    await manager.updateDevice({ ...cfg, locked: true })
+
+    await expect(manager.setVoltage(id, 1, 5)).rejects.toThrow(/kili[td]/i)
+    await expect(manager.setCurrent(id, 1, 2)).rejects.toThrow(/kili[td]/i)
+    await expect(manager.setOvp(id, 1, 50)).rejects.toThrow(/kili[td]/i)
+    await expect(manager.setOcp(id, 1, 10)).rejects.toThrow(/kili[td]/i)
+    await expect(manager.setTracking(id, true)).rejects.toThrow(/kili[td]/i)
+    // cihaza hiçbir set komutu gitmedi
+    expect(sim.sim.channels[0].vSet).toBe(1)
+
+    // çıkış kontrolü kilitten etkilenmez (acil kapatma her zaman mümkün olmalı)
+    await manager.setOutput(id, 1, true)
+    expect(sim.sim.channels[0].outputOn).toBe(true)
+    await manager.setAllOutputs(id, false)
+    expect(sim.sim.channels[0].outputOn).toBe(false)
+
+    // kilit kalıcı: yeni manager aynı dizinden locked okur
+    const manager2 = new DeviceManager({ dataDir: dir, pollIntervalMs: 50 })
+    expect((await manager2.listDevices())[0].locked).toBe(true)
+    await manager2.dispose()
+
+    // kilit açılınca komutlar tekrar çalışır
+    await manager.updateDevice({ ...cfg, locked: false })
+    await manager.setVoltage(id, 1, 5)
+    expect(sim.sim.channels[0].vSet).toBe(5)
+  })
+
   it('bağlantı koptuğunda reconnecting durumuna geçer ve sunucu dönünce bağlanır', async () => {
     const id = await addAndConnect()
     await waitForSnapshot(manager, (s) => s.state === 'connected')

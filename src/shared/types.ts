@@ -39,6 +39,12 @@ export interface DeviceConfig {
   kind: DeviceKind
   host: string
   port: number
+  /**
+   * Yazılımsal ayar kilidi (cihazın fiziksel LOCK anahtarının karşılığı):
+   * true iken gerilim/akım/OVP/OCP ve izleme modu değiştirilemez;
+   * çıkış aç/kapat ve trip sıfırlama etkilenmez.
+   */
+  locked?: boolean
 }
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error'

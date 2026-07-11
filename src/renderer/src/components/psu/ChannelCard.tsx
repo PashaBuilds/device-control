@@ -8,6 +8,8 @@ interface Props {
   measurement: ChannelMeasurement
   setpoints: ChannelSetpoints
   connected: boolean
+  /** Ayar kilidi: setpoint alanlarını devre dışı bırakır, çıkış anahtarı çalışır */
+  locked: boolean
   onSetVoltage: (v: number) => Promise<void>
   onSetCurrent: (a: number) => Promise<void>
   onSetOvp: (v: number) => Promise<void>
@@ -16,8 +18,9 @@ interface Props {
 }
 
 export function ChannelCard(props: Props): React.JSX.Element {
-  const { channel, typeInfo, measurement: m, setpoints: sp, connected } = props
+  const { channel, typeInfo, measurement: m, setpoints: sp, connected, locked } = props
   const on = connected && m.outputOn
+  const spDisabled = !connected || locked
 
   return (
     <section className={`channel-card${on ? ' output-on' : ''}${connected ? '' : ' disabled'}`}>
@@ -59,7 +62,7 @@ export function ChannelCard(props: Props): React.JSX.Element {
         </div>
       </div>
 
-      <div className="setpoints">
+      <div className={`setpoints${locked ? ' locked' : ''}`}>
         <SetpointField
           label={tr.panel.vSet}
           unit="V"
@@ -67,7 +70,7 @@ export function ChannelCard(props: Props): React.JSX.Element {
           min={0}
           max={typeInfo.maxVoltage}
           step={0.1}
-          disabled={!connected}
+          disabled={spDisabled}
           onApply={props.onSetVoltage}
         />
         <SetpointField
@@ -77,7 +80,7 @@ export function ChannelCard(props: Props): React.JSX.Element {
           min={0}
           max={typeInfo.maxCurrent}
           step={0.01}
-          disabled={!connected}
+          disabled={spDisabled}
           onApply={props.onSetCurrent}
         />
         <SetpointField
@@ -87,7 +90,7 @@ export function ChannelCard(props: Props): React.JSX.Element {
           min={1}
           max={typeInfo.maxOvp}
           step={0.1}
-          disabled={!connected}
+          disabled={spDisabled}
           onApply={props.onSetOvp}
         />
         <SetpointField
@@ -97,7 +100,7 @@ export function ChannelCard(props: Props): React.JSX.Element {
           min={1}
           max={typeInfo.maxOcp}
           step={0.1}
-          disabled={!connected}
+          disabled={spDisabled}
           onApply={props.onSetOcp}
         />
       </div>

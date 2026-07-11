@@ -14,6 +14,10 @@ kategorisinin yanına yeni kategoriler eklenebilir.
 - **Kanal kontrolü**: gerilim/akım setpoint (yazarak veya adım tuşlarıyla), çıkış
   aç/kapa, OPALL, OVP/OCP koruma limitleri, CV/CC mod rozeti, izleme (tracking) modu.
 - **Koruma**: trip (OVP/OCP) algılama, uyarı bandı ve tek tıkla TRIPRST.
+- **Ayar kilidi**: cihazın fiziksel LOCK anahtarının yazılımsal karşılığı — kilitliyken
+  gerilim/akım/OVP/OCP ve izleme modu değiştirilemez (arayüzde devre dışı kalır ve
+  komut katmanında da reddedilir); çıkış aç/kapat ve trip sıfırlama çalışmaya devam
+  eder. Kilit durumu cihaz kaydıyla birlikte kalıcıdır.
 - **Trend grafiği**: kanal başına canlı V/I eğrileri (1/5/30 dk pencere), CSV dışa aktarım.
 - **SCPI konsolu**: ham komut gönderme + tüm trafiğin zaman damgalı kaydı.
 - **Dayanıklılık**: bağlantı kopunca üstel geri çekilme ile otomatik yeniden bağlanma;
