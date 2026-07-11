@@ -27,8 +27,10 @@ function buildSeries(channelCount: number): uPlot.Series[] {
     series.push({
       label: tr.chart.voltage(ch),
       stroke: V_COLOR,
-      width: 1.5,
+      width: 1.6,
       dash: ch === 2 ? [6, 4] : undefined,
+      // yalnızca düz çizgili 1. kanal alan dolgusu alır — okunaklılık korunur
+      fill: ch === 1 ? 'rgba(94, 193, 242, 0.07)' : undefined,
       scale: 'V',
       points: { show: false },
       value: (_u, v) => (v == null ? '—' : `${v.toFixed(2)} V`)
@@ -36,8 +38,9 @@ function buildSeries(channelCount: number): uPlot.Series[] {
     series.push({
       label: tr.chart.current(ch),
       stroke: A_COLOR,
-      width: 1.5,
+      width: 1.6,
       dash: ch === 2 ? [6, 4] : undefined,
+      fill: ch === 1 ? 'rgba(242, 179, 86, 0.055)' : undefined,
       scale: 'A',
       points: { show: false },
       value: (_u, v) => (v == null ? '—' : `${v.toFixed(2)} A`)

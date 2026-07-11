@@ -58,7 +58,10 @@ async function addDevice(page: Page, name: string, port: number, kind = 'cpx400d
     document.querySelector<HTMLInputElement>('#dev-port')?.select()
   })
   await page.type('#dev-port', String(port))
-  await page.click('.dialog-foot .btn.primary')
+  // DOM-level tıklama: atmosferik overlay katmanları koordinat tıklamasını ıskalatabiliyor
+  await page.evaluate(() =>
+    document.querySelector<HTMLButtonElement>('.dialog-foot .btn.primary')?.click()
+  )
   await waitForText(page, name)
 }
 
@@ -96,6 +99,9 @@ async function main(): Promise<void> {
     const pages = await browser.pages()
     const page = pages.find((p) => p.url().includes('index.html')) ?? pages[0]
     if (!page) fail('Uygulama sayfası bulunamadı')
+
+    // Animasyonları kapat: otomasyon tıklamaları hareketli öğeyi ıskalamasın
+    await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
 
     await waitForText(page, 'CİHAZ KONTROL')
     ok('Arayüz yüklendi (boş durum)')

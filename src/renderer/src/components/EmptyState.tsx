@@ -12,6 +12,7 @@ export function EmptyState(): React.JSX.Element {
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
             <rect x="2" y="6" width="24" height="16" rx="3" stroke="currentColor" strokeWidth="1.5" />
             <path
+              className="wave"
               d="M6 14h4l2-4 3 8 2-4h5"
               stroke="currentColor"
               strokeWidth="1.5"
