@@ -4,7 +4,8 @@ export const tr = {
   appSubtitle: 'TCP/IP Enstrüman Paneli',
 
   categories: {
-    'power-supply': 'Güç Kaynakları'
+    'power-supply': 'Güç Kaynakları',
+    'debug-probe': 'Debug Probları'
   },
 
   sidebar: {

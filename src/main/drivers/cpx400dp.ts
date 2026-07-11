@@ -121,9 +121,7 @@ export function createDriver(kind: DeviceKind, conn: ScpiConnection): PsuDriver 
   switch (kind) {
     case 'cpx400dp':
       return new Cpx400dpDriver(conn)
-    default: {
-      const exhaustive: never = kind
-      throw new Error(`Bilinmeyen cihaz türü: ${exhaustive}`)
-    }
+    default:
+      throw new Error(`SCPI güç kaynağı sürücüsü olmayan cihaz türü: ${kind}`)
   }
 }

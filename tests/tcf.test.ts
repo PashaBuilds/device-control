@@ -42,7 +42,7 @@ function startTcfServer(
     const write = (parts: string[]): void => void socket.write(encodeTcfMessage(parts))
     write(['E', 'Locator', 'Hello', JSON.stringify(helloServices)])
     socket.on('data', (d) => {
-      for (const msg of dec.push(d)) handler(msg, write)
+      for (const msg of dec.push(typeof d === 'string' ? Buffer.from(d) : d)) handler(msg, write)
     })
   })
   return new Promise((resolve) => {
