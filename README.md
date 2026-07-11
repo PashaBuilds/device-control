@@ -1,11 +1,14 @@
 # Cihaz Kontrol
 
 TCP/IP ağı üzerinden laboratuvar/saha cihazlarını kontrol eden masaüstü uygulaması.
-İlk desteklenen cihaz: **Aim-TTi CPX400DP** çift kanallı güç kaynağı (2×60V/20A, 420W).
 
-Mimari, yeni cihaz türlerinin (elektronik yük, sinyal üreteci vb.) *sürücü + panel*
-çifti eklenerek genişletilmesine göre tasarlandı; kenar çubuğundaki **Güç Kaynakları**
-kategorisinin yanına yeni kategoriler eklenebilir.
+Desteklenen cihazlar:
+- **Aim-TTi CPX400DP** çift kanallı güç kaynağı (2×60V/20A, 420W) — SCPI, TCP 9221
+- **Xilinx SmartLynq** JTAG/debug probu (DLC20/DLC30) — TCF/hw_server, TCP 3121
+
+Mimari, yeni cihaz türlerinin *sürücü + panel* çifti eklenerek genişletilmesine göre
+tasarlandı; kenar çubuğundaki **Güç Kaynakları** ve **Debug Probları** kategorilerinin
+yanına yenileri eklenebilir.
 
 ## Özellikler
 
@@ -32,16 +35,18 @@ npm test             # birim/entegrasyon testleri (Vitest)
 npm run typecheck    # TS denetimi
 ```
 
-### CPX400DP simülatörü
+### Simülatörler
 
-Gerçek donanım olmadan geliştirme/test için gerçek protokolü konuşan TCP simülatörü:
+Gerçek donanım olmadan geliştirme/test için gerçek protokolleri konuşan TCP simülatörleri:
 
 ```bash
-npm run sim          # 127.0.0.1:9221 dinler (npm run sim -- 9222 ile port değişir)
+npm run sim          # CPX400DP (SCPI), 127.0.0.1:9221 (npm run sim -- 9222 ile port değişir)
+npm run sim:lynq     # SmartLynq (TCF/hw_server), 127.0.0.1:3121
 ```
 
-Uygulamada cihaz eklerken IP `127.0.0.1`, port `9221` girin. Test uzantıları:
-`SIM:LOAD1 8` (kanal 1 yükünü 8Ω yap), `SIM:TRIP1 OVP|OCP` (zorla trip).
+CPX400DP test uzantıları: `SIM:LOAD1 8` (kanal 1 yükünü 8Ω yap), `SIM:TRIP1 OVP|OCP`
+(zorla trip). SmartLynq simülatörü Locator/Jtag servislerini ve örnek bir xc7z045
+zincirini bildirir.
 
 Ayrıca renderer düz tarayıcıda açılırsa (Electron dışı) protokol modeli üzerinde
 çalışan bir taklit `deviceApi` devreye girer — hızlı arayüz geliştirme içindir.
@@ -70,17 +75,32 @@ Paket imzasızdır; ilk çalıştırmada SmartScreen uyarısı normaldir
 4. Cihaz arka paneldeki kilit anahtarına ve `IFLOCK` durumuna göre uzaktan komutları
    reddedebilir; SCPI konsolundan `IFLOCK` göndererek arayüz kilidini alabilirsiniz.
 
+## Saha kullanımı (SmartLynq)
+
+1. SmartLynq'i ağa bağlayın; IP'sini öğrenin (hw_server portu varsayılan **3121**).
+2. Uygulamada **Debug Probları → Cihaz Ekle** → tür Xilinx SmartLynq, IP ve port girin.
+3. **Bağlan** → agent kimliği, TCF servisleri ve (bildirilirse) JTAG zinciri görünür.
+4. Vivado Hardware Manager'da hedefi açmak için paneldeki bağlantı adresini (**Kopyala**)
+   kullanabilirsiniz: Open Target → Add Xilinx Virtual Cable / hw_server → `ip:3121`.
+
+Not: Bu sürüm SmartLynq'e "ulaş ve gör" kapsamındadır (bağlantı doğrulama, servis ve
+zincir görünürlüğü). Asıl programlama/debug işlemleri Vivado/hw_server araçlarıyla yapılır.
+
 ## Mimari özet
 
 ```
-src/main      Electron ana süreç: ScpiConnection (TCP 9221, komut kuyruğu),
-              Cpx400dpDriver, DeviceManager (yoklama, yeniden bağlanma, kalıcılık)
+src/main      Electron ana süreç:
+              - scpi/  ScpiConnection (TCP 9221, komut kuyruğu)
+              - tcf/   TcfConnection (TCP 3121, NUL/EOM çerçeveleme)
+              - drivers/  Cpx400dpDriver, SmartLynqDriver
+              - DeviceManager (yoklama, yeniden bağlanma, kalıcılık, kilit)
 src/preload   Tip güvenli IPC köprüsü (window.deviceApi)
-src/renderer  React arayüz (kenar çubuğu, PSU paneli, trend, konsol)
+src/renderer  React arayüz (kenar çubuğu, PSU paneli, probe paneli, trend, konsol)
 src/shared    Ortak tipler + IPC sözleşmesi
-tools/        CPX400DP simülatörü, E2E duman testi, ikon üretimi
+tools/        CPX400DP + SmartLynq simülatörleri, E2E duman testi, ikon üretimi
 docs/         Tasarım (spec) ve implementasyon planı
 ```
 
-Yeni cihaz türü eklemek için: `src/shared/types.ts`teki `DEVICE_TYPES`e kayıt,
-`src/main/drivers/` altına sürücü, `src/renderer/src/components/` altına panel.
+Yeni cihaz türü eklemek için: `src/shared/types.ts`teki `DEVICE_TYPES`e kayıt (kategori),
+`src/main/drivers/` altına sürücü, `src/renderer/src/components/` altına panel; App
+kategoriye göre paneli seçer.

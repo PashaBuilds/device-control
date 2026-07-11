@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import puppeteer, { type Browser, type Page } from 'puppeteer-core'
 import { startCpx400dpSim, type SimHandle } from '../simulator/cpx400dp-sim'
+import { startSmartLynqSim, type SmartLynqSimHandle } from '../simulator/smartlynq-sim'
 
 const ROOT = resolve(__dirname, '../..')
 const SHOTS = process.env.E2E_SHOTS_DIR || join(ROOT, '.data/e2e-shots')
@@ -45,10 +46,12 @@ async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: join(SHOTS, `${name}.png`) as `${string}.png` })
 }
 
-async function addDevice(page: Page, name: string, port: number): Promise<void> {
+async function addDevice(page: Page, name: string, port: number, kind = 'cpx400dp'): Promise<void> {
+  // Doğru kategorinin "Cihaz Ekle" düğmesini kullan (birden fazla olabilir)
   const addBtn = await page.waitForSelector('.add-device, .empty-state .btn.primary')
   await addBtn!.click()
   await page.waitForSelector('.dialog')
+  await page.select('#dev-type', kind)
   await page.type('#dev-name', name)
   await page.type('#dev-host', '127.0.0.1')
   await page.evaluate(() => {
@@ -64,6 +67,7 @@ async function main(): Promise<void> {
   const dataDir = mkdtempSync(join(tmpdir(), 'dc-e2e-'))
   let sim1: SimHandle | null = await startCpx400dpSim(9221)
   const sim2 = await startCpx400dpSim(9222)
+  const lynq: SmartLynqSimHandle = await startSmartLynqSim(3121)
   sim1.sim.channels[0].loadOhms = 5 // 10V/5Ω = 2A
 
   const electronBin = join(ROOT, 'node_modules/.bin/electron')
@@ -148,6 +152,19 @@ async function main(): Promise<void> {
     ok('Simülatör dönünce otomatik yeniden bağlandı')
     await shot(page, '05-geri-geldi')
 
+    // SmartLynq (TCF) probu ekle + bağlan + probe bilgisi doğrula
+    await addDevice(page, 'Lynq Probe', 3121, 'smartlynq')
+    ok('SmartLynq probu eklendi')
+    const lynqConnect = await page.waitForSelector('.topbar .btn.primary')
+    await lynqConnect!.click()
+    await waitForText(page, 'Xilinx hw_server', 15000)
+    await waitForText(page, 'xc7z045', 15000)
+    ok('SmartLynq bağlandı — agent + JTAG hedefi (xc7z045) görünüyor')
+    const svcCount = await page.evaluate(() => document.querySelectorAll('.chip').length)
+    if (svcCount < 3) fail(`TCF servis çipleri beklenirdi, ${svcCount} bulundu`)
+    ok(`TCF servisleri listelendi (${svcCount} çip)`)
+    await shot(page, '06-smartlynq')
+
     console.log('\nDuman testi BAŞARILI — görüntüler: ' + SHOTS)
   } catch (err) {
     // Teşhis: hata anındaki görüntü ve sayfa metni
@@ -168,6 +185,7 @@ async function main(): Promise<void> {
     app.kill('SIGTERM')
     await sim1?.close()
     await sim2.close()
+    await lynq.close()
   }
 }
 
