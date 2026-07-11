@@ -18,6 +18,7 @@ function snap(id: string, ts: number, v1: number, i1: number): DeviceSnapshot {
     ],
     tracking: false,
     trips: [],
+    probe: null,
     timestamp: ts
   }
 }

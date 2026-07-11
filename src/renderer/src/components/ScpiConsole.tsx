@@ -6,6 +6,8 @@ interface Props {
   deviceId: string
   connected: boolean
   onError: (err: unknown) => void
+  /** Girdi ipucu; verilmezse SCPI metni kullanılır */
+  placeholder?: string
 }
 
 function fmtTime(ts: number): string {
@@ -14,7 +16,7 @@ function fmtTime(ts: number): string {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`
 }
 
-export function ScpiConsole({ deviceId, connected, onError }: Props): React.JSX.Element {
+export function ScpiConsole({ deviceId, connected, onError, placeholder }: Props): React.JSX.Element {
   const logs = useAppStore((s) => s.logs[deviceId]) ?? []
   const [input, setInput] = useState('')
   const [history, setHistory] = useState<string[]>([])
@@ -77,7 +79,7 @@ export function ScpiConsole({ deviceId, connected, onError }: Props): React.JSX.
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={tr.console.placeholder}
+          placeholder={placeholder ?? tr.console.placeholder}
           disabled={!connected}
           spellCheck={false}
         />

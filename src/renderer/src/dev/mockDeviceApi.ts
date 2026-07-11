@@ -14,6 +14,7 @@ import type {
   ConnectionState,
   DeviceConfig,
   DeviceSnapshot,
+  ProbeInfo,
   ScpiLogEntry,
   TripInfo
 } from '@shared/types'
@@ -25,12 +26,19 @@ const LSR_OCP = 0b1000
 
 interface MockDevice {
   config: DeviceConfig
-  sim: Cpx400dpSim
+  sim: Cpx400dpSim | null
   state: ConnectionState
   identity: string | null
   trips: TripInfo[]
+  probe: ProbeInfo | null
   pollTimer: number | null
   pollCount: number
+}
+
+const MOCK_PROBE: ProbeInfo = {
+  services: ['Locator', 'Jtag', 'JtagCable', 'JtagDevice', 'Memory', 'RunControl', 'Xicom', 'stapl'],
+  agentId: 'sim-dlc20-agent-0001',
+  jtagTargets: ['xc7z045']
 }
 
 type SnapshotCb = (s: DeviceSnapshot) => void
@@ -53,11 +61,14 @@ function persist(): void {
 }
 
 function createMock(config: DeviceConfig): MockDevice {
+  if (config.kind === 'smartlynq') {
+    return { config, sim: null, state: 'disconnected', identity: null, trips: [], probe: null, pollTimer: null, pollCount: 0 }
+  }
   const sim = new Cpx400dpSim()
   // Görsel test için canlı bir sahne: farklı yükler
   sim.handle('SIM:LOAD1 8')
   sim.handle('SIM:LOAD2 3')
-  return { config, sim, state: 'disconnected', identity: null, trips: [], pollTimer: null, pollCount: 0 }
+  return { config, sim, state: 'disconnected', identity: null, trips: [], probe: null, pollTimer: null, pollCount: 0 }
 }
 
 for (const cfg of loadConfigs()) devices.set(cfg.id, createMock(cfg))
@@ -69,6 +80,7 @@ function num(resp: string | null): number {
 }
 
 function ask(dev: MockDevice, cmd: string): string | null {
+  if (!dev.sim) return null
   const resp = dev.sim.handle(cmd)
   const ts = Date.now()
   for (const cb of logCbs) {
@@ -88,6 +100,20 @@ function readSetpoints(dev: MockDevice, ch: number): ChannelSetpoints {
 }
 
 function snapshot(dev: MockDevice): DeviceSnapshot {
+  if (dev.config.kind === 'smartlynq') {
+    return {
+      id: dev.config.id,
+      state: dev.state,
+      identity: dev.identity,
+      error: null,
+      channels: [],
+      setpoints: [],
+      tracking: false,
+      trips: [],
+      probe: dev.probe,
+      timestamp: Date.now()
+    }
+  }
   const info = deviceTypeInfo(dev.config.kind)
   const channels: ChannelMeasurement[] = []
   const setpoints: ChannelSetpoints[] = []
@@ -113,6 +139,7 @@ function snapshot(dev: MockDevice): DeviceSnapshot {
     setpoints,
     tracking: ask(dev, 'CONFIG?') === '0',
     trips: [...dev.trips],
+    probe: null,
     timestamp: Date.now()
   }
 }
@@ -149,8 +176,14 @@ function requireConnected(id: string): MockDevice {
   return dev
 }
 
-function requireUnlocked(id: string): MockDevice {
+function requirePsu(id: string): MockDevice {
   const dev = requireConnected(id)
+  if (!dev.sim) throw new Error('Bu komut bu cihaz türünde desteklenmiyor')
+  return dev
+}
+
+function requireUnlocked(id: string): MockDevice {
+  const dev = requirePsu(id)
   if (dev.config.locked) {
     throw new Error('Ayar kilidi etkin — değerleri değiştirmek için kilidi açın')
   }
@@ -191,6 +224,18 @@ const mockApi = {
     dev.state = 'connecting'
     publish(dev)
     await new Promise((r) => setTimeout(r, 600))
+    if (dev.config.kind === 'smartlynq') {
+      dev.state = 'connected'
+      dev.probe = MOCK_PROBE
+      dev.identity = `Xilinx hw_server (TCF) — ${MOCK_PROBE.agentId}`
+      const ts = Date.now()
+      for (const cb of logCbs) {
+        cb({ deviceId: dev.config.id, dir: 'tx', line: 'E Locator Hello ["Locator"]', timestamp: ts })
+        cb({ deviceId: dev.config.id, dir: 'rx', line: 'E Locator Hello ' + JSON.stringify(MOCK_PROBE.services), timestamp: ts })
+      }
+      publish(dev)
+      return
+    }
     dev.state = 'connected'
     dev.identity = ask(dev, '*IDN?')
     dev.pollTimer = window.setInterval(() => {
@@ -228,12 +273,12 @@ const mockApi = {
     await afterSet(dev)
   },
   async setOutput(id: string, ch: number, on: boolean): Promise<void> {
-    const dev = requireConnected(id)
+    const dev = requirePsu(id)
     ask(dev, `OP${ch} ${on ? 1 : 0}`)
     await afterSet(dev)
   },
   async setAllOutputs(id: string, on: boolean): Promise<void> {
-    const dev = requireConnected(id)
+    const dev = requirePsu(id)
     ask(dev, `OPALL ${on ? 1 : 0}`)
     await afterSet(dev)
   },
@@ -252,6 +297,19 @@ const mockApi = {
   },
   async sendRaw(id: string, command: string): Promise<string | null> {
     const dev = requireConnected(id)
+    if (dev.config.kind === 'smartlynq') {
+      const ts = Date.now()
+      let reply = 'OK'
+      if (/getAgentID/i.test(command)) reply = `null ${JSON.stringify(MOCK_PROBE.agentId)}`
+      else if (/getChildren\s+""/i.test(command)) reply = 'null ["port0"]'
+      else if (/getChildren/i.test(command)) reply = 'null ["xc7z045-0"]'
+      else if (/getContext/i.test(command)) reply = 'null {"ID":"xc7z045-0","Name":"xc7z045"}'
+      for (const cb of logCbs) {
+        cb({ deviceId: dev.config.id, dir: 'tx', line: 'C 1 ' + command, timestamp: ts })
+        cb({ deviceId: dev.config.id, dir: 'rx', line: 'R 1 ' + reply, timestamp: ts })
+      }
+      return reply
+    }
     const resp = ask(dev, command)
     publish(dev)
     return command.includes('?') ? resp : null

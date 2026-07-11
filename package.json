@@ -1,6 +1,6 @@
 {
   "name": "cihaz-kontrol",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "TCP/IP üzerinden laboratuvar cihazlarını kontrol eden masaüstü uygulaması",
   "main": "out/main/index.js",
   "author": "Mert Cukur",
@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "sim": "tsx tools/simulator/cli.ts",
     "dist:win": "electron-vite build && electron-builder --win --x64",
-    "e2e": "tsx tools/e2e/smoke.ts"
+    "e2e": "tsx tools/e2e/smoke.ts",
+    "sim:lynq": "tsx tools/simulator/smartlynq-cli.ts"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.2.7",

@@ -18,7 +18,7 @@ function ledClass(state: ConnectionState | undefined): string {
   }
 }
 
-const CATEGORY_ORDER: DeviceCategory[] = ['power-supply']
+const CATEGORY_ORDER: DeviceCategory[] = ['power-supply', 'debug-probe']
 
 export function Sidebar(): React.JSX.Element {
   const { devices, snapshots, selectedId, select, removeDevice } = useAppStore()

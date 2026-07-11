@@ -6,11 +6,14 @@ import type {
   ConnectionState,
   DeviceConfig,
   DeviceSnapshot,
+  ProbeInfo,
   TripInfo
 } from '@shared/types'
 import { deviceTypeInfo } from '@shared/types'
 import { ScpiConnection } from './scpi/connection'
+import { TcfConnection } from './tcf/connection'
 import { createDriver } from './drivers/cpx400dp'
+import { SmartLynqDriver } from './drivers/smartlynq'
 import type { PsuDriver } from './drivers/types'
 import { Store } from './store'
 
@@ -27,6 +30,8 @@ interface ManagedDevice {
   config: DeviceConfig
   conn: ScpiConnection | null
   driver: PsuDriver | null
+  tcf: TcfConnection | null
+  probeDriver: SmartLynqDriver | null
   state: ConnectionState
   identity: string | null
   error: string | null
@@ -34,6 +39,7 @@ interface ManagedDevice {
   setpoints: ChannelSetpoints[]
   tracking: boolean
   trips: TripInfo[]
+  probe: ProbeInfo | null
   pollTimer: NodeJS.Timeout | null
   pollBusy: boolean
   pollCount: number
@@ -76,6 +82,8 @@ export class DeviceManager extends EventEmitter {
       config,
       conn: null,
       driver: null,
+      tcf: null,
+      probeDriver: null,
       state: 'disconnected',
       identity: null,
       error: null,
@@ -83,6 +91,7 @@ export class DeviceManager extends EventEmitter {
       setpoints: Array.from({ length: info.channelCount }, emptySetpoints),
       tracking: false,
       trips: [],
+      probe: null,
       pollTimer: null,
       pollBusy: false,
       pollCount: 0,
@@ -98,8 +107,13 @@ export class DeviceManager extends EventEmitter {
     return dev
   }
 
+  private isProbe(dev: ManagedDevice): boolean {
+    return deviceTypeInfo(dev.config.kind).category === 'debug-probe'
+  }
+
   private requireDriver(id: string): { dev: ManagedDevice; driver: PsuDriver } {
     const dev = this.get(id)
+    if (this.isProbe(dev)) throw new Error('Bu komut bu cihaz türünde desteklenmiyor')
     if (!dev.driver || !dev.conn?.connected) throw new Error('Cihaz bağlı değil')
     return { dev, driver: dev.driver }
   }
@@ -127,6 +141,7 @@ export class DeviceManager extends EventEmitter {
       setpoints: dev.setpoints.map((s) => ({ ...s })),
       tracking: dev.tracking,
       trips: dev.trips.map((t) => ({ ...t })),
+      probe: dev.probe ? { ...dev.probe, services: [...dev.probe.services], jtagTargets: [...dev.probe.jtagTargets] } : null,
       timestamp: Date.now()
     }
   }
@@ -183,6 +198,7 @@ export class DeviceManager extends EventEmitter {
   }
 
   private async establish(dev: ManagedDevice, phase: 'connecting' | 'reconnecting'): Promise<void> {
+    if (this.isProbe(dev)) return this.establishProbe(dev, phase)
     if (dev.conn) {
       dev.conn.removeAllListeners()
       dev.conn.disconnect()
@@ -242,6 +258,68 @@ export class DeviceManager extends EventEmitter {
     this.startPolling(dev)
   }
 
+  /** Debug probu (TCF/hw_server) bağlantı akışı. */
+  private async establishProbe(dev: ManagedDevice, phase: 'connecting' | 'reconnecting'): Promise<void> {
+    if (dev.tcf) {
+      dev.tcf.removeAllListeners()
+      dev.tcf.disconnect()
+      dev.tcf = null
+      dev.probeDriver = null
+    }
+    dev.state = phase
+    dev.error = null
+    this.publish(dev)
+
+    const tcf = new TcfConnection(dev.config.host, dev.config.port)
+    tcf.on('log', (e: { dir: 'tx' | 'rx'; line: string }) =>
+      this.emit('log', { deviceId: dev.config.id, dir: e.dir, line: e.line, timestamp: Date.now() })
+    )
+    try {
+      await tcf.connect()
+    } catch (err) {
+      tcf.removeAllListeners()
+      dev.error = `Bağlantı kurulamadı: ${(err as Error).message}`
+      if (phase === 'reconnecting') {
+        this.scheduleReconnect(dev)
+      } else {
+        dev.state = 'error'
+        this.publish(dev)
+      }
+      throw err instanceof Error ? err : new Error(String(err))
+    }
+
+    dev.tcf = tcf
+    dev.probeDriver = new SmartLynqDriver(tcf)
+    tcf.on('close', () => {
+      if (dev.userDisconnected || this.disposed) return
+      this.stopPolling(dev)
+      dev.tcf = null
+      dev.probeDriver = null
+      dev.error = 'Bağlantı koptu'
+      this.scheduleReconnect(dev)
+    })
+
+    try {
+      dev.probe = await dev.probeDriver.gatherInfo()
+      dev.identity = `Xilinx hw_server (TCF)${dev.probe.agentId ? ` — ${dev.probe.agentId}` : ''}`
+    } catch (err) {
+      dev.error = `Cihaz yanıt vermiyor: ${(err as Error).message}`
+      dev.state = 'error'
+      tcf.removeAllListeners()
+      tcf.disconnect()
+      dev.tcf = null
+      dev.probeDriver = null
+      this.publish(dev)
+      throw err instanceof Error ? err : new Error(String(err))
+    }
+
+    dev.state = 'connected'
+    dev.error = null
+    dev.reconnectDelayMs = 1000
+    this.publish(dev)
+    this.startPolling(dev)
+  }
+
   private scheduleReconnect(dev: ManagedDevice): void {
     if (this.disposed || dev.userDisconnected) return
     dev.state = 'reconnecting'
@@ -267,6 +345,12 @@ export class DeviceManager extends EventEmitter {
       dev.conn = null
       dev.driver = null
     }
+    if (dev.tcf) {
+      dev.tcf.removeAllListeners()
+      dev.tcf.disconnect()
+      dev.tcf = null
+      dev.probeDriver = null
+    }
     dev.state = 'disconnected'
     dev.channels = dev.channels.map(() => emptyChannel())
     dev.error = null
@@ -290,6 +374,7 @@ export class DeviceManager extends EventEmitter {
   }
 
   private async poll(dev: ManagedDevice): Promise<void> {
+    if (this.isProbe(dev)) return this.pollProbe(dev)
     if (dev.pollBusy || !dev.driver || !dev.conn?.connected) return
     dev.pollBusy = true
     try {
@@ -332,6 +417,33 @@ export class DeviceManager extends EventEmitter {
           dev.error = 'Cihaz yanıt vermiyor'
           this.scheduleReconnect(dev)
         }
+      }
+    } finally {
+      dev.pollBusy = false
+    }
+  }
+
+  /** Probe canlılık denetimi: her 4. döngüde (≈2 sn) Locator sync. */
+  private async pollProbe(dev: ManagedDevice): Promise<void> {
+    if (dev.pollBusy || !dev.probeDriver || !dev.tcf?.connected) return
+    dev.pollCount++
+    if (dev.pollCount % 4 !== 0) return
+    dev.pollBusy = true
+    try {
+      await dev.probeDriver.ping()
+      dev.error = null
+    } catch {
+      const tcf = dev.tcf
+      if (tcf) {
+        tcf.removeAllListeners()
+        tcf.disconnect()
+      }
+      dev.tcf = null
+      dev.probeDriver = null
+      if (!dev.userDisconnected) {
+        this.stopPolling(dev)
+        dev.error = 'Cihaz yanıt vermiyor'
+        this.scheduleReconnect(dev)
       }
     } finally {
       dev.pollBusy = false
@@ -420,8 +532,17 @@ export class DeviceManager extends EventEmitter {
   }
 
   async sendRaw(id: string, command: string): Promise<string | null> {
-    const { dev } = this.requireDriver(id)
-    const conn = dev.conn!
+    const dev = this.get(id)
+    if (this.isProbe(dev)) {
+      if (!dev.tcf?.connected) throw new Error('Cihaz bağlı değil')
+      const m = command.trim().match(/^(\S+)\s+(\S+)(?:\s+([\s\S]+))?$/)
+      if (!m) throw new Error('Biçim: <Servis> <komut> [JSON argüman] — ör. Jtag getChildren ""')
+      const args = m[3] ? [m[3].trim()] : []
+      const reply = await dev.tcf.command(m[1], m[2], ...args)
+      return reply.length > 0 ? reply.join(' ') : 'OK'
+    }
+    const { dev: psuDev } = this.requireDriver(id)
+    const conn = psuDev.conn!
     if (command.includes('?')) return conn.query(command)
     await conn.send(command)
     return null
@@ -438,6 +559,10 @@ export class DeviceManager extends EventEmitter {
       dev.conn?.disconnect()
       dev.conn = null
       dev.driver = null
+      dev.tcf?.removeAllListeners()
+      dev.tcf?.disconnect()
+      dev.tcf = null
+      dev.probeDriver = null
     }
   }
 }
