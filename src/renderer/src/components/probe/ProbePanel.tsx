@@ -119,8 +119,8 @@ export function ProbePanel({ device }: { device: DeviceConfig }): React.JSX.Elem
             {probe && probe.jtagTargets.length > 0 ? (
               <div className="chip-row">
                 {probe.jtagTargets.map((t) => (
-                  <span key={t} className="chip target">
-                    {t}
+                  <span key={t.name} className="chip target">
+                    {t.name}
                   </span>
                 ))}
               </div>

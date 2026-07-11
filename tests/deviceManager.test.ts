@@ -189,7 +189,8 @@ describe('DeviceManager (simülatöre karşı)', () => {
       const snap = await connectedSnap
       expect(snap.probe!.services).toContain('Jtag')
       expect(snap.probe!.agentId).toMatch(/sim/i)
-      expect(snap.probe!.jtagTargets).toContain('xc7z045')
+      expect(snap.probe!.jtagTargets.map((t) => t.name)).toContain('xc7z045')
+      expect(snap.probe!.jtagTargets.find((t) => t.name === 'xc7z045')?.idCode).toBe('0x23731093')
       expect(snap.identity).toContain('hw_server')
       expect(snap.channels).toHaveLength(0)
 

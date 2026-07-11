@@ -39,13 +39,19 @@ describe('SmartLynqSim (TCF hw_server taklidi)', () => {
     expect(JSON.parse(children)).toEqual(['port0'])
   })
 
-  it('Jtag getChildren port için cihaz listesi, getContext ad döndürür', async () => {
+  it('Jtag getChildren port için cihaz listesi, getContext ad+idCode döndürür', async () => {
     const [, children] = await conn.command('Jtag', 'getChildren', ['"port0"'])
     const ids: string[] = JSON.parse(children)
-    expect(ids.length).toBeGreaterThan(0)
-    const [err, ctx] = await conn.command('Jtag', 'getContext', [JSON.stringify(ids[0])])
-    expect(err).toBe('null')
-    expect(JSON.parse(ctx).Name).toContain('xc7z045')
+    expect(ids.length).toBe(2) // arm_dap + xc7z045
+    const ctxs = await Promise.all(
+      ids.map(async (id) => JSON.parse((await conn.command('Jtag', 'getContext', [JSON.stringify(id)]))[1]))
+    )
+    const names = ctxs.map((c) => c.Name)
+    expect(names).toContain('xc7z045')
+    expect(names).toContain('arm_dap')
+    const zynq = ctxs.find((c) => c.Name === 'xc7z045')
+    expect(zynq.idCode).toBe('0x23731093')
+    expect(zynq.irLen).toBe(6)
   })
 
   it('tanınmayan komuta N döner', async () => {

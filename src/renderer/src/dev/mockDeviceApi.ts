@@ -38,7 +38,10 @@ interface MockDevice {
 const MOCK_PROBE: ProbeInfo = {
   services: ['Locator', 'Jtag', 'JtagCable', 'JtagDevice', 'Memory', 'RunControl', 'Xicom', 'stapl'],
   agentId: 'sim-dlc20-agent-0001',
-  jtagTargets: ['xc7z045']
+  jtagTargets: [
+    { name: 'arm_dap', idCode: '0x4ba00477', irLen: 4 },
+    { name: 'xc7z045', idCode: '0x23731093', irLen: 6 }
+  ]
 }
 
 type SnapshotCb = (s: DeviceSnapshot) => void

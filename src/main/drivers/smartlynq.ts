@@ -1,4 +1,4 @@
-import type { ProbeInfo } from '@shared/types'
+import type { ProbeInfo, JtagTarget } from '@shared/types'
 import { TcfConnection } from '../tcf/connection'
 
 /**
@@ -23,7 +23,7 @@ export class SmartLynqDriver {
       // komut desteklenmiyor olabilir; kimliksiz devam
     }
 
-    const jtagTargets: string[] = []
+    const jtagTargets: JtagTarget[] = []
     if (services.includes('Jtag')) {
       try {
         const [rootErr, rootChildren] = await this.conn.command('Jtag', 'getChildren', ['""'])
@@ -36,17 +36,7 @@ export class SmartLynqDriver {
             if (chErr !== 'null') continue
             const devices: string[] = JSON.parse(chChildren ?? '[]')
             for (const id of devices) {
-              try {
-                const [ctxErr, ctx] = await this.conn.command('Jtag', 'getContext', [JSON.stringify(id)])
-                if (ctxErr === 'null') {
-                  const parsed = JSON.parse(ctx ?? '{}')
-                  jtagTargets.push(typeof parsed?.Name === 'string' ? parsed.Name : id)
-                } else {
-                  jtagTargets.push(id)
-                }
-              } catch {
-                jtagTargets.push(id)
-              }
+              jtagTargets.push(await this.readTarget(id))
             }
           }
         }
@@ -56,6 +46,24 @@ export class SmartLynqDriver {
     }
 
     return { services, agentId, jtagTargets }
+  }
+
+  /** Bir JTAG hedefinin bağlamını okuyup yapısal hale getirir. */
+  private async readTarget(id: string): Promise<JtagTarget> {
+    try {
+      const [ctxErr, ctx] = await this.conn.command('Jtag', 'getContext', [JSON.stringify(id)])
+      if (ctxErr === 'null') {
+        const p = JSON.parse(ctx ?? '{}')
+        return {
+          name: typeof p?.Name === 'string' ? p.Name : id,
+          idCode: typeof p?.idCode === 'string' ? p.idCode : null,
+          irLen: typeof p?.irLen === 'number' ? p.irLen : null
+        }
+      }
+    } catch {
+      // aşağıda ham id ile döner
+    }
+    return { name: id, idCode: null, irLen: null }
   }
 
   /** Canlılık denetimi: herhangi bir yanıt (R veya N) bağlantının sağlıklı olduğunu gösterir. */

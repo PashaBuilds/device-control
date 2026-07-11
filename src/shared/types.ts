@@ -82,6 +82,15 @@ export interface TripInfo {
   kind: 'ovp' | 'ocp' | 'other'
 }
 
+/** JTAG zincirindeki tek bir hedef (cihaz). */
+export interface JtagTarget {
+  name: string
+  /** IDCODE (destekleniyorsa), ör. "0x23731093" */
+  idCode: string | null
+  /** Instruction Register uzunluğu (destekleniyorsa) */
+  irLen: number | null
+}
+
 /** Debug probu (TCF/hw_server) bağlantısında toplanan bilgiler. */
 export interface ProbeInfo {
   /** Karşı tarafın Hello ile bildirdiği TCF servisleri */
@@ -89,7 +98,7 @@ export interface ProbeInfo {
   /** Locator getAgentID yanıtı (destekleniyorsa) */
   agentId: string | null
   /** Jtag servisi üzerinden sıralanabilen hedefler (destekleniyorsa) */
-  jtagTargets: string[]
+  jtagTargets: JtagTarget[]
 }
 
 export interface DeviceSnapshot {

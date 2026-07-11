@@ -144,7 +144,13 @@ export class DeviceManager extends EventEmitter {
       setpoints: dev.setpoints.map((s) => ({ ...s })),
       tracking: dev.tracking,
       trips: dev.trips.map((t) => ({ ...t })),
-      probe: dev.probe ? { ...dev.probe, services: [...dev.probe.services], jtagTargets: [...dev.probe.jtagTargets] } : null,
+      probe: dev.probe
+        ? {
+            ...dev.probe,
+            services: [...dev.probe.services],
+            jtagTargets: dev.probe.jtagTargets.map((t) => ({ ...t }))
+          }
+        : null,
       timestamp: Date.now()
     }
   }

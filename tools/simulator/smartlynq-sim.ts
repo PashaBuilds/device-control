@@ -25,11 +25,13 @@ const AGENT_ID = 'sim-dlc20-agent-0001'
 
 const JTAG_TREE: Record<string, string[]> = {
   '': ['port0'],
-  port0: ['xc7z045-0']
+  // Zynq tipik zinciri: ARM DAP + PL (xc7z045)
+  port0: ['arm_dap-0', 'xc7z045-0']
 }
 
 const JTAG_CONTEXTS: Record<string, object> = {
   port0: { ID: 'port0', Name: 'SmartLynq DLC20 (sim)', isActive: true },
+  'arm_dap-0': { ID: 'arm_dap-0', Name: 'arm_dap', idCode: '0x4ba00477', irLen: 4 },
   'xc7z045-0': { ID: 'xc7z045-0', Name: 'xc7z045', idCode: '0x23731093', irLen: 6 }
 }
 
