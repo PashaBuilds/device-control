@@ -26,20 +26,18 @@ export class SmartLynqDriver {
     const jtagTargets: string[] = []
     if (services.includes('Jtag')) {
       try {
-        const [rootErr, rootChildren] = await this.conn.command('Jtag', 'getChildren', '""')
+        const [rootErr, rootChildren] = await this.conn.command('Jtag', 'getChildren', ['""'])
         if (rootErr === 'null') {
           const ports: string[] = JSON.parse(rootChildren ?? '[]')
           for (const port of ports) {
-            const [chErr, chChildren] = await this.conn.command(
-              'Jtag',
-              'getChildren',
+            const [chErr, chChildren] = await this.conn.command('Jtag', 'getChildren', [
               JSON.stringify(port)
-            )
+            ])
             if (chErr !== 'null') continue
             const devices: string[] = JSON.parse(chChildren ?? '[]')
             for (const id of devices) {
               try {
-                const [ctxErr, ctx] = await this.conn.command('Jtag', 'getContext', JSON.stringify(id))
+                const [ctxErr, ctx] = await this.conn.command('Jtag', 'getContext', [JSON.stringify(id)])
                 if (ctxErr === 'null') {
                   const parsed = JSON.parse(ctx ?? '{}')
                   jtagTargets.push(typeof parsed?.Name === 'string' ? parsed.Name : id)
@@ -63,7 +61,7 @@ export class SmartLynqDriver {
   /** Canlılık denetimi: herhangi bir yanıt (R veya N) bağlantının sağlıklı olduğunu gösterir. */
   async ping(): Promise<void> {
     try {
-      await this.conn.command('Locator', 'sync')
+      await this.conn.command('Locator', 'sync', [], 'poll')
     } catch (err) {
       // 'N' (desteklenmeyen komut) da geçerli bir canlılık kanıtıdır
       if (err instanceof Error && /desteklemiyor/.test(err.message)) return

@@ -5,9 +5,12 @@ export interface ScpiConnectionOptions {
   timeoutMs?: number
 }
 
+export type LogSource = 'user' | 'poll'
+
 interface QueueItem {
   cmd: string
   expectsResponse: boolean
+  source: LogSource
   resolve: (value: string) => void
   reject: (err: Error) => void
 }
@@ -86,22 +89,22 @@ export class ScpiConnection extends EventEmitter {
   }
 
   /** Yanıt bekleyen komut. Tek satır yanıt döner (CR/LF kırpılmış). */
-  query(cmd: string): Promise<string> {
-    return this.enqueue(cmd, true)
+  query(cmd: string, source: LogSource = 'user'): Promise<string> {
+    return this.enqueue(cmd, true, source)
   }
 
   /** Yanıt beklemeyen komut. Kuyruk sırası korunarak yazılır. */
-  send(cmd: string): Promise<void> {
-    return this.enqueue(cmd, false).then(() => undefined)
+  send(cmd: string, source: LogSource = 'user'): Promise<void> {
+    return this.enqueue(cmd, false, source).then(() => undefined)
   }
 
-  private enqueue(cmd: string, expectsResponse: boolean): Promise<string> {
+  private enqueue(cmd: string, expectsResponse: boolean, source: LogSource): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       if (!this._connected || !this.socket) {
         reject(new Error('disconnected'))
         return
       }
-      this.queue.push({ cmd, expectsResponse, resolve, reject })
+      this.queue.push({ cmd, expectsResponse, source, resolve, reject })
       this.pump()
     })
   }
@@ -113,7 +116,7 @@ export class ScpiConnection extends EventEmitter {
       return
     }
     const item = this.queue.shift()!
-    this.emit('log', { dir: 'tx', line: item.cmd })
+    this.emit('log', { dir: 'tx', line: item.cmd, source: item.source })
     this.socket.write(item.cmd + '\n')
 
     if (!item.expectsResponse) {
@@ -141,7 +144,7 @@ export class ScpiConnection extends EventEmitter {
     while ((idx = this.buffer.indexOf('\n')) >= 0) {
       const line = this.buffer.slice(0, idx).replace(/\r$/, '')
       this.buffer = this.buffer.slice(idx + 1)
-      this.emit('log', { dir: 'rx', line })
+      this.emit('log', { dir: 'rx', line, source: this.inFlight?.source ?? 'user' })
       const item = this.inFlight
       if (item) {
         this.inFlight = null

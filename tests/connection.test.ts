@@ -119,13 +119,24 @@ describe('ScpiConnection', () => {
     const srv = await startFakeServer((line) => (line === '*IDN?' ? 'THURLBY THANDAR, CPX400DP, 0, 1.00' : undefined))
     closeServer = srv.close
     conn = new ScpiConnection('127.0.0.1', srv.port)
-    const logs: Array<{ dir: string; line: string }> = []
-    conn.on('log', (e: { dir: string; line: string }) => logs.push(e))
+    const logs: Array<{ dir: string; line: string; source: string }> = []
+    conn.on('log', (e: { dir: string; line: string; source: string }) => logs.push(e))
     await conn.connect()
     await conn.query('*IDN?')
     expect(logs).toEqual([
-      { dir: 'tx', line: '*IDN?' },
-      { dir: 'rx', line: 'THURLBY THANDAR, CPX400DP, 0, 1.00' }
+      { dir: 'tx', line: '*IDN?', source: 'user' },
+      { dir: 'rx', line: 'THURLBY THANDAR, CPX400DP, 0, 1.00', source: 'user' }
     ])
+  })
+
+  it("poll kaynaklı sorgular log'da 'poll' etiketi taşır", async () => {
+    const srv = await startFakeServer((line) => (line === 'V1O?' ? '5.000V' : undefined))
+    closeServer = srv.close
+    conn = new ScpiConnection('127.0.0.1', srv.port)
+    const logs: Array<{ dir: string; source: string }> = []
+    conn.on('log', (e: { dir: string; source: string }) => logs.push(e))
+    await conn.connect()
+    await conn.query('V1O?', 'poll')
+    expect(logs.map((l) => l.source)).toEqual(['poll', 'poll'])
   })
 })

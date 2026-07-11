@@ -79,23 +79,24 @@ function num(resp: string | null): number {
   return matches && matches.length > 0 ? Number(matches[matches.length - 1]) : 0
 }
 
-function ask(dev: MockDevice, cmd: string): string | null {
+function ask(dev: MockDevice, cmd: string, source: 'user' | 'poll' = 'user'): string | null {
   if (!dev.sim) return null
   const resp = dev.sim.handle(cmd)
   const ts = Date.now()
   for (const cb of logCbs) {
-    cb({ deviceId: dev.config.id, dir: 'tx', line: cmd, timestamp: ts })
-    if (resp !== null) cb({ deviceId: dev.config.id, dir: 'rx', line: resp, timestamp: ts })
+    cb({ deviceId: dev.config.id, dir: 'tx', line: cmd, source, timestamp: ts })
+    if (resp !== null) cb({ deviceId: dev.config.id, dir: 'rx', line: resp, source, timestamp: ts })
   }
   return resp
 }
 
 function readSetpoints(dev: MockDevice, ch: number): ChannelSetpoints {
+  // Snapshot üretimi arka plan işi sayılır → poll etiketi
   return {
-    voltage: num(ask(dev, `V${ch}?`)),
-    current: num(ask(dev, `I${ch}?`)),
-    ovp: num(ask(dev, `OVP${ch}?`)),
-    ocp: num(ask(dev, `OCP${ch}?`))
+    voltage: num(ask(dev, `V${ch}?`, 'poll')),
+    current: num(ask(dev, `I${ch}?`, 'poll')),
+    ovp: num(ask(dev, `OVP${ch}?`, 'poll')),
+    ocp: num(ask(dev, `OCP${ch}?`, 'poll'))
   }
 }
 
@@ -124,9 +125,9 @@ function snapshot(dev: MockDevice): DeviceSnapshot {
       channels.push({ voltage: 0, current: 0, power: 0, outputOn: false, mode: 'off' })
       continue
     }
-    const voltage = num(ask(dev, `V${ch}O?`))
-    const current = num(ask(dev, `I${ch}O?`))
-    const outputOn = ask(dev, `OP${ch}?`) === '1'
+    const voltage = num(ask(dev, `V${ch}O?`, 'poll'))
+    const current = num(ask(dev, `I${ch}O?`, 'poll'))
+    const outputOn = ask(dev, `OP${ch}?`, 'poll') === '1'
     const mode = !outputOn ? 'off' : sp.current > 0 && current >= sp.current * 0.98 ? 'cc' : 'cv'
     channels.push({ voltage, current, power: voltage * current, outputOn, mode })
   }
@@ -137,7 +138,7 @@ function snapshot(dev: MockDevice): DeviceSnapshot {
     error: null,
     channels,
     setpoints,
-    tracking: ask(dev, 'CONFIG?') === '0',
+    tracking: ask(dev, 'CONFIG?', 'poll') === '0',
     trips: [...dev.trips],
     probe: null,
     timestamp: Date.now()
@@ -152,7 +153,7 @@ function publish(dev: MockDevice): void {
 function pollTrips(dev: MockDevice): void {
   const info = deviceTypeInfo(dev.config.kind)
   for (let ch = 1; ch <= info.channelCount; ch++) {
-    const lsr = num(ask(dev, `LSR${ch}?`))
+    const lsr = num(ask(dev, `LSR${ch}?`, 'poll'))
     for (const [bit, kind] of [
       [LSR_OVP, 'ovp'],
       [LSR_OCP, 'ocp']
@@ -230,8 +231,8 @@ const mockApi = {
       dev.identity = `Xilinx hw_server (TCF) — ${MOCK_PROBE.agentId}`
       const ts = Date.now()
       for (const cb of logCbs) {
-        cb({ deviceId: dev.config.id, dir: 'tx', line: 'E Locator Hello ["Locator"]', timestamp: ts })
-        cb({ deviceId: dev.config.id, dir: 'rx', line: 'E Locator Hello ' + JSON.stringify(MOCK_PROBE.services), timestamp: ts })
+        cb({ deviceId: dev.config.id, dir: 'tx', line: 'E Locator Hello ["Locator"]', source: 'user', timestamp: ts })
+        cb({ deviceId: dev.config.id, dir: 'rx', line: 'E Locator Hello ' + JSON.stringify(MOCK_PROBE.services), source: 'user', timestamp: ts })
       }
       publish(dev)
       return
@@ -305,8 +306,8 @@ const mockApi = {
       else if (/getChildren/i.test(command)) reply = 'null ["xc7z045-0"]'
       else if (/getContext/i.test(command)) reply = 'null {"ID":"xc7z045-0","Name":"xc7z045"}'
       for (const cb of logCbs) {
-        cb({ deviceId: dev.config.id, dir: 'tx', line: 'C 1 ' + command, timestamp: ts })
-        cb({ deviceId: dev.config.id, dir: 'rx', line: 'R 1 ' + reply, timestamp: ts })
+        cb({ deviceId: dev.config.id, dir: 'tx', line: 'C 1 ' + command, source: 'user', timestamp: ts })
+        cb({ deviceId: dev.config.id, dir: 'rx', line: 'R 1 ' + reply, source: 'user', timestamp: ts })
       }
       return reply
     }

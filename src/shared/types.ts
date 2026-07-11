@@ -106,9 +106,13 @@ export interface DeviceSnapshot {
   timestamp: number
 }
 
+/** Trafiğin kaynağı: kullanıcı eylemi mi, arka plan yoklaması mı. */
+export type LogSource = 'user' | 'poll'
+
 export interface ScpiLogEntry {
   deviceId: string
   dir: 'tx' | 'rx'
   line: string
+  source: LogSource
   timestamp: number
 }

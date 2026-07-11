@@ -17,17 +17,25 @@ function fmtTime(ts: number): string {
 }
 
 export function ScpiConsole({ deviceId, connected, onError, placeholder }: Props): React.JSX.Element {
-  const logs = useAppStore((s) => s.logs[deviceId]) ?? []
+  const deviceLogs = useAppStore((s) => s.logs[deviceId])
+  const [showPolling, setShowPolling] = useState(false)
   const [input, setInput] = useState('')
   const [history, setHistory] = useState<string[]>([])
   const [histIdx, setHistIdx] = useState(-1)
   const logRef = useRef<HTMLDivElement>(null)
 
+  const userLogs = deviceLogs?.user ?? []
+  const pollLogs = deviceLogs?.poll ?? []
+  // Varsayılan: yalnızca kullanıcı trafiği. Açılırsa iki tampon zamana göre birleşir.
+  const logs = showPolling
+    ? [...userLogs, ...pollLogs].sort((a, b) => a.timestamp - b.timestamp)
+    : userLogs
+
   // Yeni satır geldikçe en alta kaydır
   useEffect(() => {
     const el = logRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [logs.length])
+  }, [logs.length, showPolling])
 
   const send = async (): Promise<void> => {
     const cmd = input.trim()
@@ -66,7 +74,7 @@ export function ScpiConsole({ deviceId, connected, onError, placeholder }: Props
           <div className="empty-note">{tr.console.empty}</div>
         ) : (
           logs.map((l, i) => (
-            <div key={i} className={`scpi-line ${l.dir}`}>
+            <div key={i} className={`scpi-line ${l.dir}${l.source === 'poll' ? ' poll' : ''}`}>
               <span className="ts">{fmtTime(l.timestamp)}</span>
               <span className="dir">{l.dir === 'tx' ? '→' : '←'}</span>
               <span className="body">{l.line}</span>
@@ -83,6 +91,14 @@ export function ScpiConsole({ deviceId, connected, onError, placeholder }: Props
           disabled={!connected}
           spellCheck={false}
         />
+        <label className="poll-toggle" title={tr.console.showPollingHint}>
+          <input
+            type="checkbox"
+            checked={showPolling}
+            onChange={(e) => setShowPolling(e.target.checked)}
+          />
+          {tr.console.showPolling}
+        </label>
       </div>
     </div>
   )

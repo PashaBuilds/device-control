@@ -2,13 +2,21 @@ import { create } from 'zustand'
 import type { DeviceConfig, DeviceSnapshot, ScpiLogEntry } from '@shared/types'
 import { pushHistory } from './history'
 
-const LOG_LIMIT = 500
+// Kullanıcı komutları uzun süre geriye dönük kalsın; yoklama gürültüsü
+// kendi tamponunda dönsün ki kullanıcı satırlarını buffer'dan itmesin.
+const USER_LOG_LIMIT = 300
+const POLL_LOG_LIMIT = 600
+
+export interface DeviceLogs {
+  user: ScpiLogEntry[]
+  poll: ScpiLogEntry[]
+}
 
 interface AppState {
   ready: boolean
   devices: DeviceConfig[]
   snapshots: Record<string, DeviceSnapshot>
-  logs: Record<string, ScpiLogEntry[]>
+  logs: Record<string, DeviceLogs>
   selectedId: string | null
 
   init(): Promise<void>
@@ -40,9 +48,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     })
     window.deviceApi.onLog((e) => {
       set((st) => {
-        const list = st.logs[e.deviceId] ?? []
-        const next = list.length >= LOG_LIMIT ? [...list.slice(-LOG_LIMIT + 1), e] : [...list, e]
-        return { logs: { ...st.logs, [e.deviceId]: next } }
+        const cur = st.logs[e.deviceId] ?? { user: [], poll: [] }
+        const key = e.source === 'poll' ? 'poll' : 'user'
+        const limit = key === 'poll' ? POLL_LOG_LIMIT : USER_LOG_LIMIT
+        const list = cur[key]
+        const next = list.length >= limit ? [...list.slice(-limit + 1), e] : [...list, e]
+        return { logs: { ...st.logs, [e.deviceId]: { ...cur, [key]: next } } }
       })
     })
 
