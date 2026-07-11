@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useEffect, useRef, useState } from 'react'
 import { DEVICE_TYPES, type DeviceKind } from '@shared/types'
 import { tr } from '../i18n/tr'
@@ -59,7 +60,7 @@ export function AddDeviceDialog({ onClose }: { onClose: () => void }): React.JSX
     }
   }
 
-  return (
+  return createPortal(
     <div className="dialog-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <form className="dialog" onSubmit={(e) => void submit(e)}>
         <div className="dialog-head">
@@ -122,6 +123,7 @@ export function AddDeviceDialog({ onClose }: { onClose: () => void }): React.JSX
           </button>
         </div>
       </form>
-    </div>
+    </div>,
+    document.body
   )
 }

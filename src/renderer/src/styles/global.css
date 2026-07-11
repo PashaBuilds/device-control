@@ -1298,3 +1298,166 @@ button {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ------------------------------ Ağ keşfi -------------------------------- */
+
+.discover-btn {
+  margin: 12px 14px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(94, 193, 242, 0.35);
+  background: linear-gradient(180deg, rgba(94, 193, 242, 0.14), rgba(94, 193, 242, 0.06));
+  color: var(--volt);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: all 0.16s;
+}
+.discover-btn:hover {
+  border-color: rgba(94, 193, 242, 0.6);
+  box-shadow: 0 0 18px -4px var(--glow-volt);
+  transform: translateY(-1px);
+}
+
+.discover-dialog {
+  width: 480px;
+}
+.discover-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.discover-sub {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 5px;
+}
+.scan-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(94, 193, 242, 0.25);
+  border-top-color: var(--volt);
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.discover-body {
+  padding: 8px 18px;
+  max-height: 340px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Radar taraması */
+.discover-scanning {
+  display: grid;
+  place-items: center;
+  padding: 34px 0 30px;
+}
+.radar {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(94, 193, 242, 0.08), transparent 70%);
+}
+.radar span {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(94, 193, 242, 0.4);
+  animation: radar-ping 2s cubic-bezier(0, 0.3, 0.5, 1) infinite;
+  opacity: 0;
+}
+.radar span:nth-child(2) {
+  animation-delay: 0.66s;
+}
+.radar span:nth-child(3) {
+  animation-delay: 1.32s;
+}
+@keyframes radar-ping {
+  0% {
+    transform: scale(0.35);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+.discovered-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+  border: 1px solid rgba(148, 180, 220, 0.1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  animation: stage-in 0.35s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+.discovered-row.is-added {
+  opacity: 0.62;
+}
+.discovered-row .led.kind-smartlynq.on {
+  background: var(--amp);
+  box-shadow: 0 0 6px var(--glow-amp);
+}
+.disc-info {
+  flex: 1;
+  min-width: 0;
+}
+.disc-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.disc-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-1);
+}
+.disc-cat {
+  font-family: var(--font-label);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  border: 1px solid var(--line-strong);
+  border-radius: 99px;
+  padding: 1px 7px;
+}
+.disc-meta {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 3px;
+}
+.disc-mac {
+  color: var(--text-3);
+}
+.disc-added {
+  font-size: 12px;
+  color: var(--ok);
+  white-space: nowrap;
+}
+.discover-empty {
+  padding: 30px 10px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
