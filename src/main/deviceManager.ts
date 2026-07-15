@@ -6,7 +6,6 @@ import type {
   ConnectionState,
   DeviceConfig,
   DeviceSnapshot,
-  DiscoveredDevice,
   ProbeInfo,
   TripInfo
 } from '@shared/types'
@@ -16,7 +15,6 @@ import { TcfConnection } from './tcf/connection'
 import { createDriver } from './drivers/cpx400dp'
 import { SmartLynqDriver } from './drivers/smartlynq'
 import type { PsuDriver } from './drivers/types'
-import { scanHosts } from './discovery'
 import { Store } from './store'
 
 const LSR_OVP = 0b0100
@@ -165,11 +163,6 @@ export class DeviceManager extends EventEmitter {
 
   async listDevices(): Promise<DeviceConfig[]> {
     return [...this.devices.values()].map((d) => ({ ...d.config }))
-  }
-
-  /** Yerel ağı tarayıp desteklenen cihazları bulur. */
-  async discover(): Promise<DiscoveredDevice[]> {
-    return scanHosts()
   }
 
   /** Bağlantı kurmadan mevcut durum görüntülerini döndürür (UI ilk yükleme için). */
@@ -332,7 +325,7 @@ export class DeviceManager extends EventEmitter {
 
     try {
       dev.probe = await dev.probeDriver.gatherInfo()
-      dev.identity = `Xilinx hw_server (TCF)${dev.probe.agentId ? ` — ${dev.probe.agentId}` : ''}`
+      dev.identity = `Xilinx Hardware Server (hw_server)${dev.probe.agentId ? ` — ${dev.probe.agentId}` : ''}`
     } catch (err) {
       dev.error = `Cihaz yanıt vermiyor: ${(err as Error).message}`
       dev.state = 'error'

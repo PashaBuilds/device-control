@@ -10,26 +10,9 @@ export const tr = {
 
   sidebar: {
     addDevice: 'Cihaz Ekle',
-    discover: 'Ağı Tara',
     removeDevice: 'Cihazı kaldır',
     removeConfirm: (name: string) =>
       `"${name}" kaldırılsın mı? Bu işlem cihaz bağlantısını keser ve kaydı siler.`
-  },
-
-  discover: {
-    title: 'Ağı Tara',
-    subtitle: 'Yerel ağdaki desteklenen cihazlar aranıyor…',
-    idle: 'Yerel ağınızdaki CPX400DP ve SmartLynq cihazlarını otomatik bulun.',
-    scan: 'Taramayı Başlat',
-    rescan: 'Yeniden Tara',
-    scanning: 'Taranıyor…',
-    close: 'Kapat',
-    add: 'Ekle',
-    added: 'Ekli',
-    empty: 'Cihaz bulunamadı. Cihazların açık ve aynı ağda olduğundan emin olun.',
-    countFound: (n: number) => `${n} cihaz bulundu`,
-    mac: 'MAC',
-    macUnknown: 'MAC okunamadı'
   },
 
   state: {

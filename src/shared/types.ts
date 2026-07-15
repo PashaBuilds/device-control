@@ -28,7 +28,7 @@ export const DEVICE_TYPES: DeviceTypeInfo[] = [
   {
     kind: 'smartlynq',
     category: 'debug-probe',
-    label: 'Xilinx SmartLynq (hw_server)',
+    label: 'Xilinx Hardware Server',
     channelCount: 0,
     maxVoltage: 0,
     maxCurrent: 0,
@@ -117,16 +117,6 @@ export interface DeviceSnapshot {
 
 /** Trafiğin kaynağı: kullanıcı eylemi mi, arka plan yoklaması mı. */
 export type LogSource = 'user' | 'poll'
-
-/** Ağ keşfinde bulunan bir cihaz (henüz eklenmemiş olabilir). */
-export interface DiscoveredDevice {
-  host: string
-  port: number
-  kind: DeviceKind
-  label: string
-  identity: string | null
-  mac: string | null
-}
 
 export interface ScpiLogEntry {
   deviceId: string
