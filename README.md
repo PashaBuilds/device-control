@@ -4,7 +4,8 @@ TCP/IP ağı üzerinden laboratuvar/saha cihazlarını kontrol eden masaüstü u
 
 Desteklenen cihazlar:
 - **Aim-TTi CPX400DP** çift kanallı güç kaynağı (2×60V/20A, 420W) — SCPI, TCP 9221
-- **Xilinx SmartLynq** JTAG/debug probu (DLC20/DLC30) — TCF/hw_server, TCP 3121
+- **Keysight E36233A** çift kanallı güç kaynağı (2×30V/10A) — SCPI (E36200), TCP 5025
+- **Xilinx Hardware Server** (hw_server / SmartLynq DLC20-DLC30) — TCF, TCP 3121
 
 Mimari, yeni cihaz türlerinin *sürücü + panel* çifti eklenerek genişletilmesine göre
 tasarlandı; kenar çubuğundaki **Güç Kaynakları** ve **Debug Probları** kategorilerinin
@@ -15,7 +16,9 @@ yanına yenileri eklenebilir.
 - **Eşzamanlı çoklu cihaz**: birden fazla cihaz aynı anda bağlı kalır, her birinin
   kendi paneli vardır; bağlantı durumu kenar çubuğunda LED ile izlenir.
 - **Kanal kontrolü**: gerilim/akım setpoint (yazarak veya adım tuşlarıyla), çıkış
-  aç/kapa, OPALL, OVP/OCP koruma limitleri, CV/CC mod rozeti, izleme (tracking) modu.
+  aç/kapa, tümünü aç/kapat, OVP (ve destekleyen cihazda OCP) koruma, CV/CC mod rozeti.
+  Arayüz cihazın yeteneklerine uyum sağlar: izleme (tracking) modu ve ayrı OCP alanı
+  yalnızca bunları destekleyen cihazlarda (ör. CPX400DP) görünür.
 - **Koruma**: trip (OVP/OCP) algılama, uyarı bandı ve tek tıkla TRIPRST.
 - **Ayar kilidi**: cihazın fiziksel LOCK anahtarının yazılımsal karşılığı — kilitliyken
   gerilim/akım/OVP/OCP ve izleme modu değiştirilemez (arayüzde devre dışı kalır ve
@@ -25,10 +28,12 @@ yanına yenileri eklenebilir.
 - **SCPI konsolu**: ham komut gönderme + tüm trafiğin zaman damgalı kaydı.
 - **Dayanıklılık**: bağlantı kopunca üstel geri çekilme ile otomatik yeniden bağlanma;
   set komutları cihaz tarafında `EER?` ile doğrulanır.
-- **Ağ keşfi**: "Ağı Tara" ile yerel alt ağdaki CPX400DP (9221) ve SmartLynq (3121)
-  cihazlarını otomatik bulma; tür/IP/MAC ile listeleme ve tek tıkla ekleme.
-- **JTAG zinciri görselleştirme** (SmartLynq): zinciri TDI→cihaz→TDO şeması olarak,
+- **JTAG zinciri görselleştirme** (Hardware Server): zinciri TDI→cihaz→TDO şeması olarak,
   her hedefin IDCODE ve IR uzunluğuyla + canlı sağlık göstergesiyle gösterme.
+
+> **Not (ağ keşfi):** Air-gapped/OT ortamlarında NAC/IDS'yi tetikleyip ağ kopmasına yol
+> açtığı için otomatik ağ tarama/keşif özelliği kaldırılmıştır. Cihazlar IP ve port ile
+> elle eklenir.
 
 ## Geliştirme (macOS/Linux/Windows)
 
@@ -45,12 +50,13 @@ Gerçek donanım olmadan geliştirme/test için gerçek protokolleri konuşan TC
 
 ```bash
 npm run sim          # CPX400DP (SCPI), 127.0.0.1:9221 (npm run sim -- 9222 ile port değişir)
-npm run sim:lynq     # SmartLynq (TCF/hw_server), 127.0.0.1:3121
+npm run sim:e36233a  # Keysight E36233A (SCPI), 127.0.0.1:5025
+npm run sim:lynq     # Xilinx Hardware Server (TCF), 127.0.0.1:3121
 ```
 
-CPX400DP test uzantıları: `SIM:LOAD1 8` (kanal 1 yükünü 8Ω yap), `SIM:TRIP1 OVP|OCP`
-(zorla trip). SmartLynq simülatörü Locator/Jtag servislerini ve örnek bir xc7z045
-zincirini bildirir.
+CPX400DP / E36233A test uzantıları: `SIM:LOAD1 8` (kanal 1 yükünü 8Ω yap),
+`SIM:TRIP1 OVP|OCP` (zorla trip). Hardware Server simülatörü Locator/Jtag servislerini
+ve örnek bir zinciri (arm_dap + xc7z045) bildirir.
 
 Ayrıca renderer düz tarayıcıda açılırsa (Electron dışı) protokol modeli üzerinde
 çalışan bir taklit `deviceApi` devreye girer — hızlı arayüz geliştirme içindir.
@@ -79,15 +85,24 @@ Paket imzasızdır; ilk çalıştırmada SmartScreen uyarısı normaldir
 4. Cihaz arka paneldeki kilit anahtarına ve `IFLOCK` durumuna göre uzaktan komutları
    reddedebilir; SCPI konsolundan `IFLOCK` göndererek arayüz kilidini alabilirsiniz.
 
-## Saha kullanımı (SmartLynq)
+## Saha kullanımı (Keysight E36233A)
 
-1. SmartLynq'i ağa bağlayın; IP'sini öğrenin (hw_server portu varsayılan **3121**).
-2. Uygulamada **Debug Probları → Cihaz Ekle** → tür Xilinx SmartLynq, IP ve port girin.
+1. Güç kaynağının LAN ayarlarından IP adresini öğrenin (raw-socket portu **5025**).
+2. Uygulamada **Cihaz Ekle** → tür Keysight E36233A, IP ve portu girin.
+3. **Bağlan** → üst şeritte `Keysight Technologies,E36233A,...` kimliği görünmelidir.
+
+Not: E36200 serisinde OCP ayrı bir seviye değildir (akım limitinde tetiklenir) ve kanal
+izleme modu yoktur; arayüz bu türde OCP alanını ve izleme anahtarını göstermez.
+
+## Saha kullanımı (Xilinx Hardware Server)
+
+1. Hardware Server'ı (SmartLynq / hw_server) ağa bağlayın; IP'sini öğrenin (port **3121**).
+2. Uygulamada **Debug Probları → Cihaz Ekle** → tür Xilinx Hardware Server, IP ve port girin.
 3. **Bağlan** → agent kimliği, TCF servisleri ve (bildirilirse) JTAG zinciri görünür.
 4. Vivado Hardware Manager'da hedefi açmak için paneldeki bağlantı adresini (**Kopyala**)
    kullanabilirsiniz: Open Target → Add Xilinx Virtual Cable / hw_server → `ip:3121`.
 
-Not: Bu sürüm SmartLynq'e "ulaş ve gör" kapsamındadır (bağlantı doğrulama, servis ve
+Not: Bu sürüm Hardware Server'a "ulaş ve gör" kapsamındadır (bağlantı doğrulama, servis ve
 zincir görünürlüğü). Asıl programlama/debug işlemleri Vivado/hw_server araçlarıyla yapılır.
 
 ## Mimari özet
@@ -96,7 +111,7 @@ zincir görünürlüğü). Asıl programlama/debug işlemleri Vivado/hw_server a
 src/main      Electron ana süreç:
               - scpi/  ScpiConnection (TCP 9221, komut kuyruğu)
               - tcf/   TcfConnection (TCP 3121, NUL/EOM çerçeveleme)
-              - drivers/  Cpx400dpDriver, SmartLynqDriver
+              - drivers/  Cpx400dpDriver, E36233aDriver, SmartLynqDriver (Hardware Server)
               - DeviceManager (yoklama, yeniden bağlanma, kalıcılık, kilit)
 src/preload   Tip güvenli IPC köprüsü (window.deviceApi)
 src/renderer  React arayüz (kenar çubuğu, PSU paneli, probe paneli, trend, konsol)

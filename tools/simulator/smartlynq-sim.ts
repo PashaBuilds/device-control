@@ -30,7 +30,7 @@ const JTAG_TREE: Record<string, string[]> = {
 }
 
 const JTAG_CONTEXTS: Record<string, object> = {
-  port0: { ID: 'port0', Name: 'SmartLynq DLC20 (sim)', isActive: true },
+  port0: { ID: 'port0', Name: 'Hardware Server (sim)', isActive: true },
   'arm_dap-0': { ID: 'arm_dap-0', Name: 'arm_dap', idCode: '0x4ba00477', irLen: 4 },
   'xc7z045-0': { ID: 'xc7z045-0', Name: 'xc7z045', idCode: '0x23731093', irLen: 6 }
 }

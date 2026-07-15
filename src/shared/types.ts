@@ -1,4 +1,4 @@
-export type DeviceKind = 'cpx400dp' | 'smartlynq'
+export type DeviceKind = 'cpx400dp' | 'e36233a' | 'smartlynq'
 export type DeviceCategory = 'power-supply' | 'debug-probe'
 
 export interface DeviceTypeInfo {
@@ -11,6 +11,14 @@ export interface DeviceTypeInfo {
   maxOvp: number
   maxOcp: number
   defaultPort: number
+  /** Cihaz kanal izleme (tracking) modunu destekliyor mu (ör. CPX CONFIG 0) */
+  hasTracking: boolean
+  /**
+   * Ayrı bir OCP (aşırı akım koruması) seviyesi girişi var mı. Bazı cihazlarda
+   * (ör. Keysight E36200) OCP ayrı seviye değil, akım limitinde tetiklenir —
+   * bu durumda ayrı OCP alanı gösterilmez.
+   */
+  hasOcpLevel: boolean
 }
 
 export const DEVICE_TYPES: DeviceTypeInfo[] = [
@@ -23,18 +31,36 @@ export const DEVICE_TYPES: DeviceTypeInfo[] = [
     maxCurrent: 20,
     maxOvp: 66,
     maxOcp: 22,
-    defaultPort: 9221
+    defaultPort: 9221,
+    hasTracking: true,
+    hasOcpLevel: true
+  },
+  {
+    kind: 'e36233a',
+    category: 'power-supply',
+    label: 'Keysight E36233A',
+    channelCount: 2,
+    maxVoltage: 30,
+    maxCurrent: 10,
+    maxOvp: 33,
+    maxOcp: 11,
+    defaultPort: 5025,
+    hasTracking: false,
+    // E36200 serisinde OCP ayrı seviye değil; akım limitinde tetiklenir
+    hasOcpLevel: false
   },
   {
     kind: 'smartlynq',
     category: 'debug-probe',
-    label: 'Xilinx SmartLynq (hw_server)',
+    label: 'Xilinx Hardware Server',
     channelCount: 0,
     maxVoltage: 0,
     maxCurrent: 0,
     maxOvp: 0,
     maxOcp: 0,
-    defaultPort: 3121
+    defaultPort: 3121,
+    hasTracking: false,
+    hasOcpLevel: false
   }
 ]
 
@@ -117,16 +143,6 @@ export interface DeviceSnapshot {
 
 /** Trafiğin kaynağı: kullanıcı eylemi mi, arka plan yoklaması mı. */
 export type LogSource = 'user' | 'poll'
-
-/** Ağ keşfinde bulunan bir cihaz (henüz eklenmemiş olabilir). */
-export interface DiscoveredDevice {
-  host: string
-  port: number
-  kind: DeviceKind
-  label: string
-  identity: string | null
-  mac: string | null
-}
 
 export interface ScpiLogEntry {
   deviceId: string

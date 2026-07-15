@@ -93,16 +93,18 @@ export function ChannelCard(props: Props): React.JSX.Element {
           disabled={spDisabled}
           onApply={props.onSetOvp}
         />
-        <SetpointField
-          label={tr.panel.ocp}
-          unit="A"
-          value={sp.ocp}
-          min={1}
-          max={typeInfo.maxOcp}
-          step={0.1}
-          disabled={spDisabled}
-          onApply={props.onSetOcp}
-        />
+        {typeInfo.hasOcpLevel && (
+          <SetpointField
+            label={tr.panel.ocp}
+            unit="A"
+            value={sp.ocp}
+            min={1}
+            max={typeInfo.maxOcp}
+            step={0.1}
+            disabled={spDisabled}
+            onApply={props.onSetOcp}
+          />
+        )}
       </div>
     </section>
   )

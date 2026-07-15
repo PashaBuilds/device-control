@@ -1,6 +1,7 @@
 import type { DeviceKind, ChannelSetpoints, LogSource } from '@shared/types'
 import { ScpiConnection } from '../scpi/connection'
 import type { PsuDriver } from './types'
+import { E36233aDriver } from './e36233a'
 
 /** `"V1 5.000"` / `"DELTAV1 0.500"` biçimindeki yanıtlardan sayıyı ayıklar. */
 export function parseNamedValue(resp: string): number {
@@ -129,6 +130,8 @@ export function createDriver(
   switch (kind) {
     case 'cpx400dp':
       return new Cpx400dpDriver(conn, source)
+    case 'e36233a':
+      return new E36233aDriver(conn, source)
     default:
       throw new Error(`SCPI güç kaynağı sürücüsü olmayan cihaz türü: ${kind}`)
   }

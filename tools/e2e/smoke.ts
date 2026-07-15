@@ -19,6 +19,7 @@ import { join, resolve } from 'node:path'
 import puppeteer, { type Browser, type Page } from 'puppeteer-core'
 import { startCpx400dpSim, type SimHandle } from '../simulator/cpx400dp-sim'
 import { startSmartLynqSim, type SmartLynqSimHandle } from '../simulator/smartlynq-sim'
+import { startE36233aSim, type E36233aSimHandle } from '../simulator/e36233a-sim'
 
 const ROOT = resolve(__dirname, '../..')
 const SHOTS = process.env.E2E_SHOTS_DIR || join(ROOT, '.data/e2e-shots')
@@ -71,7 +72,9 @@ async function main(): Promise<void> {
   let sim1: SimHandle | null = await startCpx400dpSim(9221)
   const sim2 = await startCpx400dpSim(9222)
   const lynq: SmartLynqSimHandle = await startSmartLynqSim(3121)
+  const keysight: E36233aSimHandle = await startE36233aSim(5025)
   sim1.sim.channels[0].loadOhms = 5 // 10V/5Ω = 2A
+  keysight.sim.channels[0].loadOhms = 10 // 12V/10Ω = 1.2A
 
   const electronBin = join(ROOT, 'node_modules/.bin/electron')
   const app: ChildProcess = spawn(electronBin, [ROOT, `--remote-debugging-port=${DEBUG_PORT}`], {
@@ -163,9 +166,9 @@ async function main(): Promise<void> {
     ok('SmartLynq probu eklendi')
     const lynqConnect = await page.waitForSelector('.topbar .btn.primary')
     await lynqConnect!.click()
-    await waitForText(page, 'Xilinx hw_server', 15000)
+    await waitForText(page, 'Xilinx Hardware Server', 15000)
     await waitForText(page, 'xc7z045', 15000)
-    ok('SmartLynq bağlandı — agent + JTAG hedefi (xc7z045) görünüyor')
+    ok('Hardware Server bağlandı — agent + JTAG hedefi (xc7z045) görünüyor')
     const svcCount = await page.evaluate(() => document.querySelectorAll('.chip').length)
     if (svcCount < 3) fail(`TCF servis çipleri beklenirdi, ${svcCount} bulundu`)
     ok(`TCF servisleri listelendi (${svcCount} çip)`)
@@ -175,16 +178,35 @@ async function main(): Promise<void> {
     const nodeCount = await page.evaluate(() => document.querySelectorAll('.jtag-node').length)
     if (nodeCount !== 2) fail(`JTAG zincirinde 2 düğüm beklenirdi, ${nodeCount} bulundu`)
     ok(`JTAG zinciri çizildi (${nodeCount} hedef, IDCODE/IR görünür)`)
-    await shot(page, '06-smartlynq')
+    await shot(page, '06-hwserver')
 
-    // Ağ keşif diyaloğu (mock canned sonuç)
-    const discoverBtn = await page.waitForSelector('.discover-btn')
-    await discoverBtn!.click()
-    await waitForText(page, 'cihaz bulundu', 8000)
-    const discovered = await page.evaluate(() => document.querySelectorAll('.discovered-row').length)
-    if (discovered < 2) fail(`Keşifte en az 2 sonuç beklenirdi, ${discovered} bulundu`)
-    ok(`Ağ keşfi çalıştı (${discovered} cihaz listelendi)`)
-    await shot(page, '07-kesif')
+    // Keysight E36233A: ekle + bağlan + ölçüm + capability doğrula
+    await addDevice(page, 'Keysight PSU', 5025, 'e36233a')
+    ok('Keysight cihazı eklendi')
+    const ksConnect = await page.waitForSelector('.topbar .btn.primary')
+    await ksConnect!.click()
+    await waitForText(page, 'Keysight Technologies,E36233A', 15000)
+    ok('Keysight bağlandı, kimlik doğrulandı')
+    await page.evaluate(async () => {
+      const api = (window as unknown as { deviceApi: { listDevices(): Promise<Array<{ id: string; kind: string }>>; setVoltage(i: string, c: number, v: number): Promise<void>; setCurrent(i: string, c: number, a: number): Promise<void>; setOutput(i: string, c: number, on: boolean): Promise<void> } }).deviceApi
+      const d = (await api.listDevices()).find((x) => x.kind === 'e36233a')!
+      await api.setVoltage(d.id, 1, 12)
+      await api.setCurrent(d.id, 1, 2)
+      await api.setOutput(d.id, 1, true)
+    })
+    await waitForText(page, '12.00', 8000)
+    ok('Keysight ölçümü görünüyor (12.00 V)')
+    // Capability: tracking anahtarı YOK, OCP alanı YOK, OVP alanı VAR
+    const caps = await page.evaluate(() => ({
+      tracking: document.querySelectorAll('.switch-label').length,
+      ovp: document.body.innerText.includes('OVP'),
+      ocp: document.body.innerText.includes('OCP')
+    }))
+    if (caps.tracking !== 0) fail(`Keysight'te izleme modu gösterilmemeliydi (${caps.tracking} bulundu)`)
+    if (!caps.ovp) fail('Keysight panelinde OVP alanı beklenirdi')
+    if (caps.ocp) fail('Keysight panelinde OCP alanı gösterilmemeliydi')
+    ok('Capability uyarlaması doğru: tracking yok, OCP yok, OVP var')
+    await shot(page, '07-keysight')
 
     console.log('\nDuman testi BAŞARILI — görüntüler: ' + SHOTS)
   } catch (err) {
@@ -207,6 +229,7 @@ async function main(): Promise<void> {
     await sim1?.close()
     await sim2.close()
     await lynq.close()
+    await keysight.close()
   }
 }
 
