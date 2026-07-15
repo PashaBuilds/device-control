@@ -8,6 +8,13 @@ export const tr = {
     'debug-probe': 'Debug Probları'
   },
 
+  theme: {
+    light: 'Açık',
+    dark: 'Koyu',
+    toLight: 'Açık temaya geç',
+    toDark: 'Koyu temaya geç'
+  },
+
   sidebar: {
     addDevice: 'Cihaz Ekle',
     removeDevice: 'Cihazı kaldır',

@@ -1412,3 +1412,193 @@ button {
   color: var(--text-1);
   font-size: 11.5px;
 }
+
+/* --------------------- Model etiketi + tema düğmesi --------------------- */
+
+.dev-model {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-2);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.model-chip {
+  font-family: var(--font-label);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--volt);
+  background: var(--volt-dim);
+  border: 1px solid rgba(94, 193, 242, 0.3);
+  border-radius: 99px;
+  padding: 3px 9px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 500;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.theme-toggle:hover {
+  color: var(--text-1);
+  border-color: var(--line-focus);
+}
+
+/* =======================================================================
+   AÇIK TEMA
+   ======================================================================= */
+
+:root[data-theme='light'] {
+  --bg-app: #e8ecf3;
+  --bg-panel: rgba(255, 255, 255, 0.72);
+  --bg-raised: rgba(255, 255, 255, 0.86);
+  --bg-inset: rgba(238, 242, 248, 0.9);
+  --bg-hover: rgba(223, 231, 242, 0.9);
+
+  --glow-volt: rgba(31, 143, 208, 0.3);
+  --glow-ok: rgba(18, 153, 106, 0.28);
+  --glow-amp: rgba(190, 122, 20, 0.28);
+  --glow-danger: rgba(214, 61, 61, 0.28);
+
+  --line: #d6dde8;
+  --line-strong: #c2ccda;
+  --line-focus: #7aa8d6;
+
+  --text-1: #16202e;
+  --text-2: #4a586b;
+  --text-3: #8592a4;
+
+  --volt: #1f8fd0;
+  --volt-dim: rgba(31, 143, 208, 0.12);
+  --amp: #b7791a;
+  --amp-dim: rgba(190, 122, 20, 0.14);
+  --ok: #12996a;
+  --ok-dim: rgba(18, 153, 106, 0.12);
+  --warn: #b7791a;
+  --danger: #d63d3d;
+  --danger-dim: rgba(214, 61, 61, 0.1);
+  --accent: #1f8fd0;
+}
+
+/* Zemin ve atmosfer */
+:root[data-theme='light'] body {
+  background:
+    radial-gradient(1100px 720px at 82% -12%, rgba(120, 170, 220, 0.28), transparent 60%),
+    radial-gradient(900px 640px at -8% 108%, rgba(150, 205, 190, 0.22), transparent 58%),
+    var(--bg-app);
+}
+:root[data-theme='light'] .app::before {
+  background:
+    radial-gradient(560px 420px at 30% 30%, rgba(31, 143, 208, 0.05), transparent 70%),
+    radial-gradient(640px 480px at 70% 70%, rgba(18, 153, 106, 0.04), transparent 70%);
+}
+:root[data-theme='light'] .app::after {
+  opacity: 0.025;
+}
+:root[data-theme='light'] .main {
+  background-image: radial-gradient(rgba(60, 84, 118, 0.07) 1px, transparent 1px);
+}
+
+/* Cam yüzeyler — açık sürümler */
+:root[data-theme='light'] .sidebar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(243, 246, 251, 0.92));
+  border-right: 1px solid rgba(60, 90, 130, 0.12);
+  box-shadow: 1px 0 20px rgba(40, 60, 95, 0.06);
+}
+:root[data-theme='light'] .topbar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(248, 250, 253, 0.6));
+  border-bottom: 1px solid rgba(60, 90, 130, 0.12);
+}
+:root[data-theme='light'] .channel-card,
+:root[data-theme='light'] .info-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent 40%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(249, 251, 253, 0.9));
+  border-color: rgba(60, 90, 130, 0.12);
+  box-shadow: 0 14px 34px rgba(40, 60, 95, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+:root[data-theme='light'] .trend-section {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 250, 253, 0.85));
+  border-color: rgba(60, 90, 130, 0.12);
+  box-shadow: 0 14px 34px rgba(40, 60, 95, 0.07);
+}
+:root[data-theme='light'] .dialog {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 253, 0.97));
+  border-color: rgba(60, 90, 130, 0.16);
+  box-shadow: 0 30px 70px rgba(30, 50, 80, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+:root[data-theme='light'] .dialog-backdrop {
+  background: rgba(90, 110, 140, 0.35);
+}
+
+/* Işıltılı rakamlar açık temada dolu renk + hafif gölge */
+:root[data-theme='light'] .readout.volt:not(.dim) .value {
+  color: var(--volt);
+  text-shadow: none;
+}
+:root[data-theme='light'] .readout.amp:not(.dim) .value {
+  color: var(--amp);
+  text-shadow: none;
+}
+:root[data-theme='light'] .readout.watt:not(.dim) .value {
+  color: var(--text-1);
+  text-shadow: none;
+}
+:root[data-theme='light'] .channel-card.output-on {
+  box-shadow:
+    0 14px 34px rgba(40, 60, 95, 0.1),
+    0 0 0 1px rgba(18, 153, 106, 0.22),
+    0 0 30px -8px var(--glow-ok);
+}
+
+/* İkon karoları ve marka — açık temada aydınlık */
+:root[data-theme='light'] .sidebar-brand .logo,
+:root[data-theme='light'] .empty-state .glyph {
+  background: linear-gradient(145deg, #eaf3fb, #dbe8f5);
+  border-color: rgba(60, 90, 130, 0.18);
+}
+:root[data-theme='light'] .sidebar-brand .name {
+  background: linear-gradient(90deg, #16202e, #1f6f9e);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Trip bandı açık kırmızı */
+:root[data-theme='light'] .trip-banner {
+  background:
+    radial-gradient(300px 60px at 8% 50%, rgba(214, 61, 61, 0.12), transparent 70%),
+    rgba(253, 235, 235, 0.9);
+  color: #b32d2d;
+}
+:root[data-theme='light'] .toast {
+  background: #fdecec;
+  color: #b32d2d;
+  border-color: rgba(214, 61, 61, 0.4);
+}
+
+/* Kaydırma çubuğu */
+:root[data-theme='light'] ::-webkit-scrollbar-thumb {
+  background: #c2ccda;
+  border-color: var(--bg-app);
+}
