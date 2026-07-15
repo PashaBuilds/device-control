@@ -24,6 +24,9 @@ yanına yenileri eklenebilir.
   gerilim/akım/OVP/OCP ve izleme modu değiştirilemez (arayüzde devre dışı kalır ve
   komut katmanında da reddedilir); çıkış aç/kapat ve trip sıfırlama çalışmaya devam
   eder. Kilit durumu cihaz kaydıyla birlikte kalıcıdır.
+- **Açık/Koyu tema**: kenar çubuğu altındaki düğmeyle geçiş; tercih kalıcı, ilk açılışta
+  sistem tercihine uyar. Her cihaz satırında ve panel başlığında cihaz **modeli** (ör.
+  Aim-TTi CPX400DP / Keysight E36233A) etiketle gösterilir.
 - **Trend grafiği**: kanal başına canlı V/I eğrileri (1/5/30 dk pencere), CSV dışa aktarım.
 - **SCPI konsolu**: ham komut gönderme + tüm trafiğin zaman damgalı kaydı.
 - **Dayanıklılık**: bağlantı kopunca üstel geri çekilme ile otomatik yeniden bağlanma;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ConnectionState, DeviceConfig } from '@shared/types'
+import { deviceTypeInfo } from '@shared/types'
 import { tr } from '../../i18n/tr'
 import { useAppStore } from '../../state/store'
 import { ScpiConsole } from '../ScpiConsole'
@@ -68,7 +69,10 @@ export function ProbePanel({ device }: { device: DeviceConfig }): React.JSX.Elem
     <div className="psu-panel">
       <header className="topbar">
         <div className="title-block">
-          <h1>{device.name}</h1>
+          <div className="title-row">
+            <h1>{device.name}</h1>
+            <span className="model-chip">{deviceTypeInfo(device.kind).label}</span>
+          </div>
           <div className="idn">{connected && snapshot?.identity ? snapshot.identity : address}</div>
         </div>
 

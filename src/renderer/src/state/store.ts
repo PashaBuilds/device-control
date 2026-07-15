@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { DeviceConfig, DeviceSnapshot, ScpiLogEntry } from '@shared/types'
 import { pushHistory } from './history'
+import { applyTheme, initialTheme, type Theme } from './theme'
 
 // Kullanıcı komutları uzun süre geriye dönük kalsın; yoklama gürültüsü
 // kendi tamponunda dönsün ki kullanıcı satırlarını buffer'dan itmesin.
@@ -18,12 +19,14 @@ interface AppState {
   snapshots: Record<string, DeviceSnapshot>
   logs: Record<string, DeviceLogs>
   selectedId: string | null
+  theme: Theme
 
   init(): Promise<void>
   refreshDevices(): Promise<void>
   select(id: string | null): void
   addDevice(cfg: Omit<DeviceConfig, 'id'>): Promise<void>
   removeDevice(id: string): Promise<void>
+  toggleTheme(): void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -32,9 +35,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   snapshots: {},
   logs: {},
   selectedId: null,
+  theme: initialTheme(),
+
+  toggleTheme() {
+    const next: Theme = get().theme === 'dark' ? 'light' : 'dark'
+    applyTheme(next)
+    set({ theme: next })
+  },
 
   async init() {
     if (get().ready) return
+    applyTheme(get().theme)
     const [devices, snapshots] = await Promise.all([
       window.deviceApi.listDevices(),
       window.deviceApi.listSnapshots()

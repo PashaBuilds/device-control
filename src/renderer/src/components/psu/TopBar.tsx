@@ -44,7 +44,10 @@ export function TopBar({
   return (
     <header className="topbar">
       <div className="title-block">
-        <h1>{device.name}</h1>
+        <div className="title-row">
+          <h1>{device.name}</h1>
+          <span className="model-chip">{deviceTypeInfo(device.kind).label}</span>
+        </div>
         <div className="idn">{connected && snapshot?.identity ? snapshot.identity : `${device.host}:${device.port}`}</div>
       </div>
 
