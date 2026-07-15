@@ -8,6 +8,7 @@
  * düz tarayıcıda yüklenir.
  */
 import { Cpx400dpSim } from '../../../../tools/simulator/model'
+import { E36233aSim } from '../../../../tools/simulator/e36233a-model'
 import type {
   ChannelMeasurement,
   ChannelSetpoints,
@@ -24,15 +25,88 @@ const STORAGE_KEY = 'mock-devices'
 const LSR_OVP = 0b0100
 const LSR_OCP = 0b1000
 
+type PsuSim = Cpx400dpSim | E36233aSim
+
 interface MockDevice {
   config: DeviceConfig
-  sim: Cpx400dpSim | null
+  sim: PsuSim | null
   state: ConnectionState
   identity: string | null
   trips: TripInfo[]
   probe: ProbeInfo | null
   pollTimer: number | null
   pollCount: number
+}
+
+/** İlk sayı (kanal no) hariç son sayı — CPX "V1 5.000" biçimi için. */
+function numLast(resp: string | null): number {
+  const m = (resp ?? '').match(/-?[\d.]+/g)
+  return m && m.length > 0 ? Number(m[m.length - 1]) : 0
+}
+/** İlk sayı — Keysight "5.0000" / "-222,..." biçimi için. */
+function numFirst(resp: string | null): number {
+  const m = (resp ?? '').match(/-?[\d.]+(?:[eE][+-]?\d+)?/)
+  return m ? Number(m[0]) : 0
+}
+
+/** Cihaz türüne göre SCPI lehçesi — mock, gerçekçi konsol trafiği üretsin diye ham komut gönderir. */
+interface Dialect {
+  measV: (ch: number) => string
+  measI: (ch: number) => string
+  outQ: (ch: number) => string
+  vGet: (ch: number) => string
+  iGet: (ch: number) => string
+  ovpGet: (ch: number) => string
+  vSet: (ch: number, v: number) => string
+  iSet: (ch: number, a: number) => string
+  ovpSet: (ch: number, v: number) => string
+  ocpSet: (ch: number, a: number) => string
+  out: (ch: number, on: boolean) => string
+  all: (on: boolean) => string
+  errCmd: string
+  tripResetCmd: string
+  parse: (resp: string | null) => number
+}
+
+const DIALECTS: Record<'cpx400dp' | 'e36233a', Dialect> = {
+  cpx400dp: {
+    measV: (ch) => `V${ch}O?`,
+    measI: (ch) => `I${ch}O?`,
+    outQ: (ch) => `OP${ch}?`,
+    vGet: (ch) => `V${ch}?`,
+    iGet: (ch) => `I${ch}?`,
+    ovpGet: (ch) => `OVP${ch}?`,
+    vSet: (ch, v) => `V${ch} ${v.toFixed(3)}`,
+    iSet: (ch, a) => `I${ch} ${a.toFixed(3)}`,
+    ovpSet: (ch, v) => `OVP${ch} ${v.toFixed(3)}`,
+    ocpSet: (ch, a) => `OCP${ch} ${a.toFixed(3)}`,
+    out: (ch, on) => `OP${ch} ${on ? 1 : 0}`,
+    all: (on) => `OPALL ${on ? 1 : 0}`,
+    errCmd: 'EER?',
+    tripResetCmd: 'TRIPRST',
+    parse: numLast
+  },
+  e36233a: {
+    measV: (ch) => `MEAS:VOLT? (@${ch})`,
+    measI: (ch) => `MEAS:CURR? (@${ch})`,
+    outQ: (ch) => `OUTP? (@${ch})`,
+    vGet: (ch) => `VOLT? (@${ch})`,
+    iGet: (ch) => `CURR? (@${ch})`,
+    ovpGet: (ch) => `VOLT:PROT? (@${ch})`,
+    vSet: (ch, v) => `VOLT ${v.toFixed(4)},(@${ch})`,
+    iSet: (ch, a) => `CURR ${a.toFixed(4)},(@${ch})`,
+    ovpSet: (ch, v) => `VOLT:PROT ${v.toFixed(4)},(@${ch})`,
+    ocpSet: (ch) => `CURR:PROT:STAT ON,(@${ch})`,
+    out: (ch, on) => `OUTP ${on ? 'ON' : 'OFF'},(@${ch})`,
+    all: (on) => `OUTP ${on ? 'ON' : 'OFF'},(@1,2)`,
+    errCmd: 'SYST:ERR?',
+    tripResetCmd: 'OUTP:PROT:CLE (@1,2)',
+    parse: numFirst
+  }
+}
+
+function dl(dev: MockDevice): Dialect {
+  return DIALECTS[dev.config.kind as 'cpx400dp' | 'e36233a']
 }
 
 const MOCK_PROBE: ProbeInfo = {
@@ -64,23 +138,24 @@ function persist(): void {
 }
 
 function createMock(config: DeviceConfig): MockDevice {
+  const base = { config, state: 'disconnected' as ConnectionState, identity: null, trips: [], probe: null, pollTimer: null, pollCount: 0 }
   if (config.kind === 'smartlynq') {
-    return { config, sim: null, state: 'disconnected', identity: null, trips: [], probe: null, pollTimer: null, pollCount: 0 }
+    return { ...base, sim: null }
+  }
+  if (config.kind === 'e36233a') {
+    const sim = new E36233aSim()
+    sim.handle('SIM:LOAD1 10')
+    sim.handle('SIM:LOAD2 6')
+    return { ...base, sim }
   }
   const sim = new Cpx400dpSim()
   // Görsel test için canlı bir sahne: farklı yükler
   sim.handle('SIM:LOAD1 8')
   sim.handle('SIM:LOAD2 3')
-  return { config, sim, state: 'disconnected', identity: null, trips: [], probe: null, pollTimer: null, pollCount: 0 }
+  return { ...base, sim }
 }
 
 for (const cfg of loadConfigs()) devices.set(cfg.id, createMock(cfg))
-
-function num(resp: string | null): number {
-  // "V1 5.000" gibi yanıtlarda ilk sayı kanal numarasıdır; her zaman SON sayıyı al
-  const matches = (resp ?? '').match(/-?[\d.]+/g)
-  return matches && matches.length > 0 ? Number(matches[matches.length - 1]) : 0
-}
 
 function ask(dev: MockDevice, cmd: string, source: 'user' | 'poll' = 'user'): string | null {
   if (!dev.sim) return null
@@ -95,11 +170,14 @@ function ask(dev: MockDevice, cmd: string, source: 'user' | 'poll' = 'user'): st
 
 function readSetpoints(dev: MockDevice, ch: number): ChannelSetpoints {
   // Snapshot üretimi arka plan işi sayılır → poll etiketi
+  const d = dl(dev)
+  const info = deviceTypeInfo(dev.config.kind)
   return {
-    voltage: num(ask(dev, `V${ch}?`, 'poll')),
-    current: num(ask(dev, `I${ch}?`, 'poll')),
-    ovp: num(ask(dev, `OVP${ch}?`, 'poll')),
-    ocp: num(ask(dev, `OCP${ch}?`, 'poll'))
+    voltage: d.parse(ask(dev, d.vGet(ch), 'poll')),
+    current: d.parse(ask(dev, d.iGet(ch), 'poll')),
+    ovp: d.parse(ask(dev, d.ovpGet(ch), 'poll')),
+    // E36200'de ayrı OCP seviyesi yok
+    ocp: info.hasOcpLevel ? d.parse(ask(dev, `OCP${ch}?`, 'poll')) : 0
   }
 }
 
@@ -119,6 +197,7 @@ function snapshot(dev: MockDevice): DeviceSnapshot {
     }
   }
   const info = deviceTypeInfo(dev.config.kind)
+  const d = dl(dev)
   const channels: ChannelMeasurement[] = []
   const setpoints: ChannelSetpoints[] = []
   for (let ch = 1; ch <= info.channelCount; ch++) {
@@ -128,9 +207,9 @@ function snapshot(dev: MockDevice): DeviceSnapshot {
       channels.push({ voltage: 0, current: 0, power: 0, outputOn: false, mode: 'off' })
       continue
     }
-    const voltage = num(ask(dev, `V${ch}O?`, 'poll'))
-    const current = num(ask(dev, `I${ch}O?`, 'poll'))
-    const outputOn = ask(dev, `OP${ch}?`, 'poll') === '1'
+    const voltage = d.parse(ask(dev, d.measV(ch), 'poll'))
+    const current = d.parse(ask(dev, d.measI(ch), 'poll'))
+    const outputOn = ask(dev, d.outQ(ch), 'poll') === '1'
     const mode = !outputOn ? 'off' : sp.current > 0 && current >= sp.current * 0.98 ? 'cc' : 'cv'
     channels.push({ voltage, current, power: voltage * current, outputOn, mode })
   }
@@ -141,7 +220,7 @@ function snapshot(dev: MockDevice): DeviceSnapshot {
     error: null,
     channels,
     setpoints,
-    tracking: ask(dev, 'CONFIG?', 'poll') === '0',
+    tracking: info.hasTracking && ask(dev, 'CONFIG?', 'poll') === '0',
     trips: [...dev.trips],
     probe: null,
     timestamp: Date.now()
@@ -156,7 +235,7 @@ function publish(dev: MockDevice): void {
 function pollTrips(dev: MockDevice): void {
   const info = deviceTypeInfo(dev.config.kind)
   for (let ch = 1; ch <= info.channelCount; ch++) {
-    const lsr = num(ask(dev, `LSR${ch}?`, 'poll'))
+    const lsr = readLsrBits(dev, ch)
     for (const [bit, kind] of [
       [LSR_OVP, 'ovp'],
       [LSR_OCP, 'ocp']
@@ -166,6 +245,17 @@ function pollTrips(dev: MockDevice): void {
       }
     }
   }
+}
+
+/** Kanal için trip bitlerini türe göre okur (CPX: LSR; Keysight: TRIP? sorguları). */
+function readLsrBits(dev: MockDevice, ch: number): number {
+  if (dev.config.kind === 'e36233a') {
+    let bits = 0
+    if (ask(dev, `VOLT:PROT:TRIP? (@${ch})`, 'poll') === '1') bits |= LSR_OVP
+    if (ask(dev, `CURR:PROT:TRIP? (@${ch})`, 'poll') === '1') bits |= LSR_OCP
+    return bits
+  }
+  return numLast(ask(dev, `LSR${ch}?`, 'poll'))
 }
 
 function requireDev(id: string): MockDevice {
@@ -195,9 +285,9 @@ function requireUnlocked(id: string): MockDevice {
 }
 
 async function afterSet(dev: MockDevice): Promise<void> {
-  const eer = num(ask(dev, 'EER?'))
+  const eer = Math.abs(numFirst(ask(dev, dl(dev).errCmd)))
   publish(dev)
-  if (eer > 0) throw new Error(`Cihaz komutu reddetti (EER ${eer}) — değer aralık dışında olabilir`)
+  if (eer > 0) throw new Error(`Cihaz komutu reddetti (hata ${eer}) — değer aralık dışında olabilir`)
 }
 
 const mockApi = {
@@ -258,44 +348,45 @@ const mockApi = {
   },
   async setVoltage(id: string, ch: number, v: number): Promise<void> {
     const dev = requireUnlocked(id)
-    ask(dev, `V${ch} ${v.toFixed(3)}`)
+    ask(dev, dl(dev).vSet(ch, v))
     await afterSet(dev)
   },
   async setCurrent(id: string, ch: number, a: number): Promise<void> {
     const dev = requireUnlocked(id)
-    ask(dev, `I${ch} ${a.toFixed(3)}`)
+    ask(dev, dl(dev).iSet(ch, a))
     await afterSet(dev)
   },
   async setOvp(id: string, ch: number, v: number): Promise<void> {
     const dev = requireUnlocked(id)
-    ask(dev, `OVP${ch} ${v.toFixed(3)}`)
+    ask(dev, dl(dev).ovpSet(ch, v))
     await afterSet(dev)
   },
   async setOcp(id: string, ch: number, a: number): Promise<void> {
     const dev = requireUnlocked(id)
-    ask(dev, `OCP${ch} ${a.toFixed(3)}`)
+    ask(dev, dl(dev).ocpSet(ch, a))
     await afterSet(dev)
   },
   async setOutput(id: string, ch: number, on: boolean): Promise<void> {
     const dev = requirePsu(id)
-    ask(dev, `OP${ch} ${on ? 1 : 0}`)
+    ask(dev, dl(dev).out(ch, on))
     await afterSet(dev)
   },
   async setAllOutputs(id: string, on: boolean): Promise<void> {
     const dev = requirePsu(id)
-    ask(dev, `OPALL ${on ? 1 : 0}`)
+    ask(dev, dl(dev).all(on))
     await afterSet(dev)
   },
   async setTracking(id: string, on: boolean): Promise<void> {
     const dev = requireUnlocked(id)
-    ask(dev, `CONFIG ${on ? 0 : 2}`)
+    // yalnızca tracking destekleyen türlerde anlamlı (CPX)
+    if (deviceTypeInfo(dev.config.kind).hasTracking) ask(dev, `CONFIG ${on ? 0 : 2}`)
     publish(dev)
   },
   async tripReset(id: string): Promise<void> {
     const dev = requireConnected(id)
-    ask(dev, 'TRIPRST')
-    ask(dev, 'LSR1?')
-    ask(dev, 'LSR2?')
+    ask(dev, dl(dev).tripResetCmd)
+    readLsrBits(dev, 1)
+    readLsrBits(dev, 2)
     dev.trips = []
     publish(dev)
   },

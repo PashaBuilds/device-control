@@ -1,4 +1,5 @@
 import type { ConnectionState, DeviceConfig, DeviceSnapshot } from '@shared/types'
+import { deviceTypeInfo } from '@shared/types'
 import { tr } from '../../i18n/tr'
 
 interface Props {
@@ -38,6 +39,7 @@ export function TopBar({
   const connected = state === 'connected'
   const busy = state === 'connecting' || state === 'reconnecting'
   const locked = device.locked === true
+  const hasTracking = deviceTypeInfo(device.kind).hasTracking
 
   return (
     <header className="topbar">
@@ -70,15 +72,17 @@ export function TopBar({
 
       {connected && (
         <>
-          <button
-            className="switch-label"
-            title={locked ? tr.panel.lockHintOn : tr.panel.trackingHint}
-            onClick={() => void onTracking(!snapshot?.tracking)}
-            disabled={locked}
-          >
-            <span className={`switch${snapshot?.tracking ? ' on' : ''}`} />
-            {tr.panel.tracking}
-          </button>
+          {hasTracking && (
+            <button
+              className="switch-label"
+              title={locked ? tr.panel.lockHintOn : tr.panel.trackingHint}
+              onClick={() => void onTracking(!snapshot?.tracking)}
+              disabled={locked}
+            >
+              <span className={`switch${snapshot?.tracking ? ' on' : ''}`} />
+              {tr.panel.tracking}
+            </button>
+          )}
           <button className="btn" onClick={() => void onAllOutputs(true)}>
             {tr.panel.allOn}
           </button>
