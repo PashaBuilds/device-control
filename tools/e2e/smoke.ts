@@ -17,6 +17,8 @@ import { mkdtempSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import puppeteer, { type Browser, type Page } from 'puppeteer-core'
+// Node bağlamında 'electron' paketi ikili dosyanın yolunu verir (Windows/Linux/macOS)
+import electronBin from 'electron'
 import { startCpx400dpSim, type SimHandle } from '../simulator/cpx400dp-sim'
 import { startSmartLynqSim, type SmartLynqSimHandle } from '../simulator/smartlynq-sim'
 import { startE36233aSim, type E36233aSimHandle } from '../simulator/e36233a-sim'
@@ -76,8 +78,7 @@ async function main(): Promise<void> {
   sim1.sim.channels[0].loadOhms = 5 // 10V/5Ω = 2A
   keysight.sim.channels[0].loadOhms = 10 // 12V/10Ω = 1.2A
 
-  const electronBin = join(ROOT, 'node_modules/.bin/electron')
-  const app: ChildProcess = spawn(electronBin, [ROOT, `--remote-debugging-port=${DEBUG_PORT}`], {
+  const app: ChildProcess = spawn(electronBin as unknown as string, [ROOT, `--remote-debugging-port=${DEBUG_PORT}`], {
     env: { ...process.env, DC_DATA_DIR: dataDir },
     stdio: 'pipe'
   })
