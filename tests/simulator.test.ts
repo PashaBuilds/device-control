@@ -198,3 +198,27 @@ describe('Cpx400dpSim', () => {
     expect(await client.query('IFUNLOCK')).toBe('0')
   })
 })
+
+describe('Cpx400dpSim REMOTE/LOCAL', () => {
+  it('başlangıçta local; herhangi bir komut remote yapar; LOCAL geri alır', () => {
+    const sim = new Cpx400dpSim()
+    expect(sim.remote).toBe(false)
+    sim.handle('V1O?')
+    expect(sim.remote).toBe(true)
+    sim.handle('LOCAL')
+    expect(sim.remote).toBe(false)
+    sim.handle('V1 5.000')
+    expect(sim.remote).toBe(true)
+  })
+
+  it('SIM: komutları remote durumunu değiştirmez; SIM:REMOTE? durumu bildirir', () => {
+    const sim = new Cpx400dpSim()
+    expect(sim.handle('SIM:REMOTE?')).toBe('0')
+    expect(sim.remote).toBe(false)
+    sim.handle('*IDN?')
+    expect(sim.handle('SIM:REMOTE?')).toBe('1')
+    sim.handle('LOCAL')
+    sim.handle('SIM:LOAD1 5')
+    expect(sim.remote).toBe(false)
+  })
+})
