@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { ConnectionState, DeviceConfig, DeviceSnapshot } from '@shared/types'
 import { deviceTypeInfo } from '@shared/types'
 import { tr } from '../../i18n/tr'
@@ -10,6 +11,7 @@ interface Props {
   onAllOutputs: (on: boolean) => Promise<void>
   onTracking: (on: boolean) => Promise<void>
   onToggleLock: () => Promise<void>
+  onRefresh: () => Promise<void>
 }
 
 function ledClass(state: ConnectionState | undefined): string {
@@ -26,6 +28,16 @@ function ledClass(state: ConnectionState | undefined): string {
   }
 }
 
+/** Saniyede bir yenilenen "şimdi" değeri (son okuma yaşını göstermek için). */
+function useNow(): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(t)
+  }, [])
+  return now
+}
+
 export function TopBar({
   device,
   snapshot,
@@ -33,13 +45,19 @@ export function TopBar({
   onDisconnect,
   onAllOutputs,
   onTracking,
-  onToggleLock
+  onToggleLock,
+  onRefresh
 }: Props): React.JSX.Element {
   const state = snapshot?.state ?? 'disconnected'
   const connected = state === 'connected'
   const busy = state === 'connecting' || state === 'reconnecting'
   const locked = device.locked === true
-  const hasTracking = deviceTypeInfo(device.kind).hasTracking
+  const typeInfo = deviceTypeInfo(device.kind)
+  const hasTracking = typeInfo.hasTracking
+  // Ön paneli serbest bırakan türlerde (CPX) okuma seyrek: tazelik rozeti + Yenile
+  const panelRelease = typeInfo.idleCommand !== undefined
+  const now = useNow()
+  const ageSec = snapshot ? Math.max(0, Math.round((now - snapshot.timestamp) / 1000)) : 0
 
   return (
     <header className="topbar">
@@ -75,6 +93,15 @@ export function TopBar({
 
       {connected && (
         <>
+          {panelRelease && (
+            <span className="fresh-chip" title={tr.panel.panelFreeHint(typeInfo.pollIntervalMs / 1000)}>
+              <span className="led on" />
+              {tr.panel.panelFree} · {tr.panel.lastRead(ageSec)}
+              <button className="btn ghost tiny" title={tr.panel.refreshHint} onClick={() => void onRefresh()}>
+                {tr.panel.refresh}
+              </button>
+            </span>
+          )}
           {hasTracking && (
             <button
               className="switch-label"
