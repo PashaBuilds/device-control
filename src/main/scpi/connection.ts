@@ -3,6 +3,17 @@ import net from 'node:net'
 
 export interface ScpiConnectionOptions {
   timeoutMs?: number
+  /**
+   * Kuyruk her boşaldığında bir kez yazılacak komut (yanıt beklenmez). Ön paneli
+   * uzaktan kilitleyen cihazlarda (CPX400DP `LOCAL`) paneli serbest bırakır.
+   */
+  idleCommand?: string
+  /**
+   * Kuyruk boşaldıktan sonra idle komutunu yazmadan önce beklenecek süre (ms).
+   * Art arda `await`lenen komutlar (ör. `V1 5` → `EER?`) arasına idle komutu
+   * girmesin diye kısa bir tampon. Varsayılan 10.
+   */
+  idleDelayMs?: number
 }
 
 export type LogSource = 'user' | 'poll'
@@ -30,7 +41,12 @@ export class ScpiConnection extends EventEmitter {
   private queue: QueueItem[] = []
   private inFlight: QueueItem | null = null
   private timeoutTimer: NodeJS.Timeout | null = null
+  private idleTimer: NodeJS.Timeout | null = null
   private readonly timeoutMs: number
+  private readonly idleCommand: string | undefined
+  private readonly idleDelayMs: number
+  /** Sokete en son yazılan satır; art arda iki idle komutu yazılmasını önler. */
+  private lastWritten: string | null = null
   private _connected = false
   /** Art arda zaman aşımı sayacı; DeviceManager yeniden bağlanma kararı için okur. */
   consecutiveTimeouts = 0
@@ -42,6 +58,8 @@ export class ScpiConnection extends EventEmitter {
   ) {
     super()
     this.timeoutMs = opts.timeoutMs ?? 3000
+    this.idleCommand = opts.idleCommand
+    this.idleDelayMs = opts.idleDelayMs ?? 10
   }
 
   get connected(): boolean {
@@ -65,6 +83,7 @@ export class ScpiConnection extends EventEmitter {
         this.socket = socket
         this._connected = true
         this.buffer = ''
+        this.lastWritten = null
         socket.on('data', (d) => this.onData(d))
         socket.on('error', () => {
           /* close olayı üzerinden ele alınır */
@@ -104,20 +123,26 @@ export class ScpiConnection extends EventEmitter {
         reject(new Error('disconnected'))
         return
       }
+      this.clearIdleTimer()
       this.queue.push({ cmd, expectsResponse, source, resolve, reject })
       this.pump()
     })
   }
 
   private pump(): void {
-    if (this.inFlight || this.queue.length === 0) return
+    if (this.inFlight) return
     if (!this._connected || !this.socket) {
-      this.failAll(new Error('disconnected'))
+      if (this.queue.length > 0) this.failAll(new Error('disconnected'))
+      return
+    }
+    if (this.queue.length === 0) {
+      this.scheduleIdle()
       return
     }
     const item = this.queue.shift()!
     this.emit('log', { dir: 'tx', line: item.cmd, source: item.source })
     this.socket.write(item.cmd + '\n')
+    this.lastWritten = item.cmd
 
     if (!item.expectsResponse) {
       item.resolve('')
@@ -136,6 +161,29 @@ export class ScpiConnection extends EventEmitter {
         this.pump()
       }
     }, this.timeoutMs)
+  }
+
+  /** Kuyruk boşaldı: kısa tampondan sonra hâlâ boşsa idle komutunu yaz. */
+  private scheduleIdle(): void {
+    if (!this.idleCommand || this.idleTimer || this.lastWritten === this.idleCommand) return
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = null
+      if (!this.inFlight && this.queue.length === 0) this.sendIdle()
+    }, this.idleDelayMs)
+  }
+
+  private clearIdleTimer(): void {
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer)
+      this.idleTimer = null
+    }
+  }
+
+  private sendIdle(): void {
+    if (!this.idleCommand || !this.socket || this.lastWritten === this.idleCommand) return
+    this.emit('log', { dir: 'tx', line: this.idleCommand, source: 'poll' })
+    this.socket.write(this.idleCommand + '\n')
+    this.lastWritten = this.idleCommand
   }
 
   private onData(data: Buffer | string): void {
@@ -170,6 +218,7 @@ export class ScpiConnection extends EventEmitter {
   }
 
   private failAll(err: Error): void {
+    this.clearIdleTimer()
     if (this.timeoutTimer) {
       clearTimeout(this.timeoutTimer)
       this.timeoutTimer = null

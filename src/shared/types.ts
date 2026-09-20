@@ -19,6 +19,14 @@ export interface DeviceTypeInfo {
    * bu durumda ayrı OCP alanı gösterilmez.
    */
   hasOcpLevel: boolean
+  /** Ölçüm yoklama aralığı (ms). */
+  pollIntervalMs: number
+  /**
+   * Komut kuyruğu her boşaldığında bir kez gönderilecek komut (yanıt beklenmez).
+   * Ön paneli uzaktan kilitleyen cihazlarda paneli serbest bırakmak için
+   * (ör. CPX400DP `LOCAL`). Tanımsızsa hiçbir şey gönderilmez.
+   */
+  idleCommand?: string
 }
 
 export const DEVICE_TYPES: DeviceTypeInfo[] = [
@@ -33,7 +41,10 @@ export const DEVICE_TYPES: DeviceTypeInfo[] = [
     maxOcp: 22,
     defaultPort: 9221,
     hasTracking: true,
-    hasOcpLevel: true
+    hasOcpLevel: true,
+    // Her sorgu ön paneli kilitler: seyrek yokla, kuyruk boşalınca LOCAL gönder
+    pollIntervalMs: 10000,
+    idleCommand: 'LOCAL'
   },
   {
     kind: 'e36233a',
@@ -47,7 +58,8 @@ export const DEVICE_TYPES: DeviceTypeInfo[] = [
     defaultPort: 5025,
     hasTracking: false,
     // E36200 serisinde OCP ayrı seviye değil; akım limitinde tetiklenir
-    hasOcpLevel: false
+    hasOcpLevel: false,
+    pollIntervalMs: 500
   },
   {
     kind: 'smartlynq',
@@ -60,7 +72,8 @@ export const DEVICE_TYPES: DeviceTypeInfo[] = [
     maxOcp: 0,
     defaultPort: 3121,
     hasTracking: false,
-    hasOcpLevel: false
+    hasOcpLevel: false,
+    pollIntervalMs: 500
   }
 ]
 

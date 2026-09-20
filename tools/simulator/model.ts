@@ -68,6 +68,11 @@ function defaultChannel(): ChannelState {
 export class Cpx400dpSim {
   channels: [ChannelState, ChannelState] = [defaultChannel(), defaultChannel()]
   config: 0 | 2 = 2
+  /**
+   * Gerçek cihaz gibi: arayüzden gelen her komut/sorgu REMOTE'a alır (ön panel
+   * kilitli), `LOCAL` geri LOCAL'e döndürür. `SIM:` komutları etkilemez.
+   */
+  remote = false
   private errors: number[] = []
   private memory = new Map<string, SavedSetup>()
 
@@ -144,6 +149,7 @@ export class Cpx400dpSim {
     let m: RegExpMatchArray | null
 
     // --- Test uzantıları ---
+    if (/^SIM:REMOTE\?$/i.test(line)) return this.remote ? '1' : '0'
     if ((m = line.match(/^SIM:LOAD([12])\s+([\d.]+)$/i))) {
       const ch = this.chan(m[1])!
       ch.loadOhms = Number(m[2])
@@ -154,6 +160,9 @@ export class Cpx400dpSim {
       this.trip(ch, m[2].toLowerCase() as 'ovp' | 'ocp')
       return null
     }
+
+    // Arayüzden gelen her gerçek komut cihazı REMOTE'a alır (ön panel kilitlenir)
+    this.remote = true
 
     // --- Ortak sistem komutları ---
     if (/^\*IDN\?$/i.test(line)) return 'THURLBY THANDAR, CPX400DP, 0, 1.00'
@@ -172,7 +181,10 @@ export class Cpx400dpSim {
     if (/^\*WAI$/i.test(line)) return null
     if (/^EER\?$/i.test(line)) return String(this.errors.shift() ?? 0)
     if (/^QER\?$/i.test(line)) return '0'
-    if (/^LOCAL$/i.test(line)) return null
+    if (/^LOCAL$/i.test(line)) {
+      this.remote = false
+      return null
+    }
     if (/^IFLOCK$/i.test(line)) return '1'
     if (/^IFLOCK\?$/i.test(line)) return '1'
     if (/^IFUNLOCK$/i.test(line)) return '0'

@@ -3,6 +3,7 @@ import { startCpx400dpSim, SimHandle } from '../tools/simulator/cpx400dp-sim'
 import { ScpiConnection } from '../src/main/scpi/connection'
 import { createDriver, parseNamedValue, parseSuffixed } from '../src/main/drivers/cpx400dp'
 import type { PsuDriver } from '../src/main/drivers/types'
+import { deviceTypeInfo } from '../src/shared/types'
 
 describe('parse yardımcıları', () => {
   it('parseNamedValue "V1 5.000" → 5', () => {
@@ -108,5 +109,20 @@ describe('Cpx400dpDriver (simülatöre karşı)', () => {
   it('geçersiz kanal numarası RangeError fırlatır', async () => {
     await expect(driver.readChannel(3)).rejects.toThrow(RangeError)
     await expect(driver.setVoltage(0, 5)).rejects.toThrow(RangeError)
+  })
+})
+
+describe('DeviceTypeInfo yoklama/panel alanları', () => {
+  it('CPX400DP 10 s yoklar ve kuyruk boşalınca LOCAL gönderir', () => {
+    const info = deviceTypeInfo('cpx400dp')
+    expect(info.pollIntervalMs).toBe(10000)
+    expect(info.idleCommand).toBe('LOCAL')
+  })
+
+  it('Keysight ve SmartLynq 500 ms yoklar, idle komutu yok', () => {
+    expect(deviceTypeInfo('e36233a').pollIntervalMs).toBe(500)
+    expect(deviceTypeInfo('e36233a').idleCommand).toBeUndefined()
+    expect(deviceTypeInfo('smartlynq').pollIntervalMs).toBe(500)
+    expect(deviceTypeInfo('smartlynq').idleCommand).toBeUndefined()
   })
 })

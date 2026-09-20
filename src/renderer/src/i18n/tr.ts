@@ -64,6 +64,12 @@ export const tr = {
     locked: 'Kilitli',
     lockHintOff: 'Ayar kilidi: gerilim/akım/OVP/OCP değerlerini yanlışlıkla değişime karşı korur. Çıkış aç/kapat etkilenmez.',
     lockHintOn: 'Ayar kilidi etkin — değerleri değiştirmek için kilidi açın. Çıkış aç/kapat çalışmaya devam eder.',
+    panelFree: 'Panel serbest',
+    panelFreeHint: (sec: number) =>
+      `Cihazın ön paneli serbest: uygulama ${sec} s'de bir okur ve her komuttan sonra cihazı LOCAL moduna alır.`,
+    lastRead: (sec: number) => `son okuma ${sec} s önce`,
+    refresh: 'Yenile',
+    refreshHint: 'Cihazdan şimdi oku (panel kısa süre kilitlenir)',
     notConnected: 'Cihaz bağlı değil. Kontroller bağlantı kurulunca etkinleşir.',
     channel: (n: number) => `Kanal ${n}`,
     output: 'Çıkış',

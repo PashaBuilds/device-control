@@ -20,6 +20,10 @@ yanına yenileri eklenebilir.
   Arayüz cihazın yeteneklerine uyum sağlar: izleme (tracking) modu ve ayrı OCP alanı
   yalnızca bunları destekleyen cihazlarda (ör. CPX400DP) görünür.
 - **Koruma**: trip (OVP/OCP) algılama, uyarı bandı ve tek tıkla TRIPRST.
+- **Paylaşımlı ön panel (CPX400DP)**: uygulama cihazı 10 s'de bir okur ve her komuttan
+  sonra `LOCAL` gönderir; ön panel zamanın ≈%98'inde serbesttir — bir kişi kanal 1'i
+  panelden, diğeri kanal 2'yi uygulamadan kullanabilir. Üst çubuktaki **Yenile** anında
+  okur; "son okuma N s önce" rozeti değerin tazeliğini gösterir.
 - **Ayar kilidi**: cihazın fiziksel LOCK anahtarının yazılımsal karşılığı — kilitliyken
   gerilim/akım/OVP/OCP ve izleme modu değiştirilemez (arayüzde devre dışı kalır ve
   komut katmanında da reddedilir); çıkış aç/kapat ve trip sıfırlama çalışmaya devam
@@ -87,6 +91,10 @@ Paket imzasızdır; ilk çalıştırmada SmartScreen uyarısı normaldir
 3. **Bağlan**'a tıklayın; üst şeritte `*IDN?` kimliği görünmelidir.
 4. Cihaz arka paneldeki kilit anahtarına ve `IFLOCK` durumuna göre uzaktan komutları
    reddedebilir; SCPI konsolundan `IFLOCK` göndererek arayüz kilidini alabilirsiniz.
+5. Cihazın REMOTE/LOCAL durumu kanal başına değil cihaz genelidir. Uygulama bağlıyken
+   ön panel yalnızca yoklama/komut anlarında (~0,1–0,4 s) kilitlenir; REMOTE lambası
+   kısa yanıp söner. Paneldeki **OP ALL** tuşu iki kanalı birden kapatır — uygulamadan
+   sürülen kanal da etkilenir; bu durum bir sonraki okumada (≤10 s veya **Yenile**) görünür.
 
 ## Saha kullanımı (Keysight E36233A)
 

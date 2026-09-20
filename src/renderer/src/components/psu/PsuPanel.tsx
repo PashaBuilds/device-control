@@ -60,6 +60,7 @@ export function PsuPanel({ device }: { device: DeviceConfig }): React.JSX.Elemen
         onAllOutputs={(on) => run(() => api.setAllOutputs(device.id, on))}
         onTracking={(on) => run(() => api.setTracking(device.id, on))}
         onToggleLock={() => run(toggleLock)}
+        onRefresh={() => run(() => api.refresh(device.id))}
       />
 
       {snapshot && snapshot.trips.length > 0 && (

@@ -16,6 +16,8 @@ export interface DeviceApi {
   setAllOutputs(id: string, on: boolean): Promise<void>
   setTracking(id: string, on: boolean): Promise<void>
   tripReset(id: string): Promise<void>
+  /** Anında bir yoklama turu (10 s aralıklı türlerde son okumayı tazelemek için). */
+  refresh(id: string): Promise<void>
   sendRaw(id: string, command: string): Promise<string | null>
   onSnapshot(cb: (s: DeviceSnapshot) => void): () => void
   onLog(cb: (e: ScpiLogEntry) => void): () => void
@@ -37,6 +39,7 @@ export const IPC_INVOKE_METHODS = [
   'setAllOutputs',
   'setTracking',
   'tripReset',
+  'refresh',
   'sendRaw'
 ] as const
 

@@ -390,6 +390,10 @@ const mockApi = {
     dev.trips = []
     publish(dev)
   },
+  async refresh(id: string): Promise<void> {
+    const dev = requireConnected(id)
+    publish(dev)
+  },
   async sendRaw(id: string, command: string): Promise<string | null> {
     const dev = requireConnected(id)
     if (dev.config.kind === 'smartlynq') {

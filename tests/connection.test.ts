@@ -139,4 +139,72 @@ describe('ScpiConnection', () => {
     await conn.query('V1O?', 'poll')
     expect(logs.map((l) => l.source)).toEqual(['poll', 'poll'])
   })
+
+  describe('idleCommand', () => {
+    /** Sunucunun belirli sayıda satır almasını bekler. */
+    async function waitReceived(received: string[], count: number): Promise<void> {
+      for (let i = 0; i < 100 && received.length < count; i++) {
+        await new Promise((r) => setTimeout(r, 5))
+      }
+    }
+
+    it('tek sorgudan sonra idle komutunu bir kez yazar', async () => {
+      const srv = await startFakeServer((line) => (line === 'V1?' ? 'V1 5.000' : undefined))
+      closeServer = srv.close
+      conn = new ScpiConnection('127.0.0.1', srv.port, { idleCommand: 'LOCAL' })
+      await conn.connect()
+      await conn.query('V1?')
+      await waitReceived(srv.received, 2)
+      expect(srv.received).toEqual(['V1?', 'LOCAL'])
+    })
+
+    it('art arda komutlarda araya girmez, yalnızca kuyruk boşalınca gönderir', async () => {
+      const srv = await startFakeServer((line) => (line.endsWith('?') ? '1' : undefined))
+      closeServer = srv.close
+      conn = new ScpiConnection('127.0.0.1', srv.port, { idleCommand: 'LOCAL' })
+      await conn.connect()
+      // Gerçek kullanım kalıbı: komutlar art arda await'lenir (V1 5 → EER? → V1? ...)
+      await conn.send('V1 5')
+      await conn.query('V1?')
+      await conn.query('I1?')
+      await waitReceived(srv.received, 4)
+      expect(srv.received).toEqual(['V1 5', 'V1?', 'I1?', 'LOCAL'])
+    })
+
+    it('yeni komut gelmeden ikinci bir idle komutu göndermez', async () => {
+      const srv = await startFakeServer((line) => (line.endsWith('?') ? '1' : undefined))
+      closeServer = srv.close
+      conn = new ScpiConnection('127.0.0.1', srv.port, { idleCommand: 'LOCAL' })
+      await conn.connect()
+      await conn.query('V1?')
+      await waitReceived(srv.received, 2)
+      await new Promise((r) => setTimeout(r, 30))
+      expect(srv.received).toEqual(['V1?', 'LOCAL'])
+      await conn.query('I1?')
+      await waitReceived(srv.received, 4)
+      expect(srv.received).toEqual(['V1?', 'LOCAL', 'I1?', 'LOCAL'])
+    })
+
+    it("idle komutu 'poll' kaynağıyla loglanır", async () => {
+      const srv = await startFakeServer((line) => (line === 'V1?' ? '1' : undefined))
+      closeServer = srv.close
+      conn = new ScpiConnection('127.0.0.1', srv.port, { idleCommand: 'LOCAL' })
+      const logs: Array<{ dir: string; line: string; source: string }> = []
+      conn.on('log', (e) => logs.push(e))
+      await conn.connect()
+      await conn.query('V1?')
+      await waitReceived(srv.received, 2)
+      expect(logs).toContainEqual({ dir: 'tx', line: 'LOCAL', source: 'poll' })
+    })
+
+    it('idleCommand verilmezse fazladan hiçbir şey yazmaz', async () => {
+      const srv = await startFakeServer((line) => (line === 'V1?' ? '1' : undefined))
+      closeServer = srv.close
+      conn = new ScpiConnection('127.0.0.1', srv.port)
+      await conn.connect()
+      await conn.query('V1?')
+      await new Promise((r) => setTimeout(r, 30))
+      expect(srv.received).toEqual(['V1?'])
+    })
+  })
 })
