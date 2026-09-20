@@ -133,6 +133,26 @@ async function main(): Promise<void> {
     ok('Ölçümler doğru: 10.00V / 2.00A (5Ω yük modeli)')
     await shot(page, '02-cihaz1-acik')
 
+    // Paylaşımlı panel: rozet görünür, cihaz LOCAL'de, Yenile anında okur
+    await waitForText(page, 'Panel serbest', 5000)
+    for (let i = 0; i < 40 && sim1.sim.remote; i++) await new Promise((r) => setTimeout(r, 25))
+    if (sim1.sim.remote) fail("Komutlardan sonra CPX simülatörü LOCAL'e dönmedi")
+    ok('CPX ön paneli serbest (simülatör LOCAL durumunda)')
+    sim1.sim.channels[1].vSet = 4
+    sim1.sim.channels[1].outputOn = true
+    await page.evaluate(async () => {
+      const api = (window as unknown as { deviceApi: import('../../src/shared/ipc').DeviceApi })
+        .deviceApi
+      const devs = await api.listDevices()
+      await api.refresh(devs[0].id)
+    })
+    await waitForText(page, '4.00', 5000)
+    await waitForText(page, 'son okuma 0 s önce', 3000)
+    for (let i = 0; i < 40 && sim1.sim.remote; i++) await new Promise((r) => setTimeout(r, 25))
+    if (sim1.sim.remote) fail("Yenile sonrası CPX simülatörü LOCAL'e dönmedi")
+    ok('Yenile anında okudu (4.00 V) ve cihazı LOCAL bıraktı')
+    await shot(page, '02b-panel-serbest')
+
     // 2. cihaz: eşzamanlı bağlantı
     await addDevice(page, 'Sim PSU 2', 9222)
     const connectBtn2 = await page.waitForSelector('.topbar .btn.primary')
