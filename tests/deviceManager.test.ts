@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { startCpx400dpSim, SimHandle } from '../tools/simulator/cpx400dp-sim'
 import { startSmartLynqSim } from '../tools/simulator/smartlynq-sim'
-import { DeviceManager } from '../src/main/deviceManager'
+import { startE36233aSim } from '../tools/simulator/e36233a-sim'
+import { DeviceManager, pollIntervalFor } from '../src/main/deviceManager'
 import type { DeviceSnapshot } from '../src/shared/types'
 
 function waitForSnapshot(
@@ -55,6 +56,110 @@ describe('DeviceManager (simülatöre karşı)', () => {
     await manager.connect(cfg.id)
     return cfg.id
   }
+
+  describe('ön panel serbest bırakma (CPX400DP)', () => {
+    /** Simülatörün LOCAL'e dönmesini bekler (kuyruk boşalınca kısa gecikmeyle yazılır). */
+    async function waitLocal(): Promise<void> {
+      for (let i = 0; i < 100 && sim.sim.remote; i++) await new Promise((r) => setTimeout(r, 5))
+    }
+
+    it('yoklama aralığı türden gelir; constructor seçeneği geçersiz kılar', () => {
+      expect(pollIntervalFor('cpx400dp')).toBe(10000)
+      expect(pollIntervalFor('e36233a')).toBe(500)
+      expect(pollIntervalFor('smartlynq')).toBe(500)
+      expect(pollIntervalFor('cpx400dp', 50)).toBe(50)
+    })
+
+    it('bağlantı kurulumu ve yoklama turu sonunda cihaz LOCAL kalır', async () => {
+      const id = await addAndConnect()
+      await waitForSnapshot(manager, (s) => s.id === id && s.state === 'connected')
+      await waitLocal()
+      expect(sim.sim.remote).toBe(false)
+      // bir yoklama turu daha (50 ms aralık) → yine LOCAL'e dönmeli
+      await new Promise((r) => setTimeout(r, 120))
+      await waitLocal()
+      expect(sim.sim.remote).toBe(false)
+    })
+
+    it('setVoltage ve sendRaw sonrasında cihaz LOCAL kalır', async () => {
+      const id = await addAndConnect()
+      await manager.setVoltage(id, 2, 7.5)
+      await waitLocal()
+      expect(sim.sim.remote).toBe(false)
+      expect(sim.sim.channels[1].vSet).toBe(7.5)
+      await manager.sendRaw(id, 'V1?')
+      await waitLocal()
+      expect(sim.sim.remote).toBe(false)
+    })
+
+    it('bağlanınca ilk yoklama beklemeden yapılır', async () => {
+      // 10 s aralıkla (geçersiz kılma yok) bile ilk ölçüm hemen gelmeli
+      const slow = new DeviceManager({ dataDir: dir })
+      try {
+        sim.sim.channels[0].vSet = 12
+        sim.sim.channels[0].iSet = 5 // 8 Ω yükte 1.5 A; CC'ye düşmesin
+        sim.sim.channels[0].outputOn = true
+        const cfg = await slow.addDevice({ name: 'Yavaş', kind: 'cpx400dp', host: '127.0.0.1', port: sim.port })
+        const first = waitForSnapshot(slow, (s) => s.id === cfg.id && s.channels[0].voltage === 12, 2000)
+        await slow.connect(cfg.id)
+        await first
+      } finally {
+        await slow.dispose()
+      }
+    })
+
+    it('refresh hemen bir yoklama turu yapar ve LOCAL bırakır', async () => {
+      const slow = new DeviceManager({ dataDir: dir })
+      try {
+        const cfg = await slow.addDevice({ name: 'Yavaş', kind: 'cpx400dp', host: '127.0.0.1', port: sim.port })
+        await slow.connect(cfg.id)
+        await waitForSnapshot(slow, (s) => s.id === cfg.id && s.state === 'connected')
+        sim.sim.channels[1].vSet = 9
+        sim.sim.channels[1].iSet = 5 // 8 Ω yükte 1.125 A; CC'ye düşmesin
+        sim.sim.channels[1].outputOn = true
+        const seen = waitForSnapshot(slow, (s) => s.id === cfg.id && s.channels[1].voltage === 9, 2000)
+        await slow.refresh(cfg.id)
+        await seen
+        await waitLocal()
+        expect(sim.sim.remote).toBe(false)
+      } finally {
+        await slow.dispose()
+      }
+    })
+
+    it('≥2 s aralıklı türlerde trip denetimi her turda yapılır', async () => {
+      const slow = new DeviceManager({ dataDir: dir })
+      try {
+        const cfg = await slow.addDevice({ name: 'Yavaş', kind: 'cpx400dp', host: '127.0.0.1', port: sim.port })
+        await slow.connect(cfg.id)
+        await waitForSnapshot(slow, (s) => s.id === cfg.id && s.state === 'connected')
+        sim.sim.handle('SIM:TRIP1 OVP')
+        const tripped = waitForSnapshot(slow, (s) => s.id === cfg.id && s.trips.some((t) => t.kind === 'ovp'), 2000)
+        await slow.refresh(cfg.id) // ikinci tur (pollCount=1); 500 ms'lik türde denetim yapılmazdı
+        await tripped
+      } finally {
+        await slow.dispose()
+      }
+    })
+
+    it("Keysight'a hiçbir zaman LOCAL gitmez", async () => {
+      const rx: string[] = []
+      const ks = await startE36233aSim(0, (msg) => {
+        if (msg.startsWith('rx: ')) rx.push(msg.slice(4))
+      })
+      try {
+        const cfg = await manager.addDevice({ name: 'KS', kind: 'e36233a', host: '127.0.0.1', port: ks.port })
+        await manager.connect(cfg.id)
+        await waitForSnapshot(manager, (s) => s.id === cfg.id && s.state === 'connected')
+        await manager.setVoltage(cfg.id, 1, 3)
+        await new Promise((r) => setTimeout(r, 150))
+        expect(rx.some((l) => /^(LOCAL|SYST:LOC)$/i.test(l))).toBe(false)
+        expect(rx.length).toBeGreaterThan(0)
+      } finally {
+        await ks.close()
+      }
+    })
+  })
 
   it('cihaz ekler, kalıcılaştırır ve listeler', async () => {
     const cfg = await manager.addDevice({

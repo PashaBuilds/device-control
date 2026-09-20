@@ -5,6 +5,7 @@ import type {
   ChannelSetpoints,
   ConnectionState,
   DeviceConfig,
+  DeviceKind,
   DeviceSnapshot,
   ProbeInfo,
   TripInfo
@@ -22,8 +23,13 @@ const LSR_OCP = 0b1000
 
 export interface DeviceManagerOptions {
   dataDir: string
-  /** Ölçüm yoklama aralığı (ms). Varsayılan 500. */
+  /** Ölçüm yoklama aralığı (ms). Verilirse tüm türler için cihaz türü değerini geçersiz kılar (testler için). */
   pollIntervalMs?: number
+}
+
+/** Yoklama aralığı: geçersiz kılma verilmişse o, yoksa cihaz türünün değeri. */
+export function pollIntervalFor(kind: DeviceKind, override?: number): number {
+  return override ?? deviceTypeInfo(kind).pollIntervalMs
 }
 
 interface ManagedDevice {
@@ -65,14 +71,14 @@ function emptySetpoints(): ChannelSetpoints {
  */
 export class DeviceManager extends EventEmitter {
   private readonly store: Store
-  private readonly pollIntervalMs: number
+  private readonly pollIntervalOverride: number | undefined
   private readonly devices = new Map<string, ManagedDevice>()
   private disposed = false
 
   constructor(opts: DeviceManagerOptions) {
     super()
     this.store = new Store(opts.dataDir)
-    this.pollIntervalMs = opts.pollIntervalMs ?? 500
+    this.pollIntervalOverride = opts.pollIntervalMs
     for (const config of this.store.load()) {
       this.devices.set(config.id, this.createManaged(config))
     }
@@ -219,7 +225,9 @@ export class DeviceManager extends EventEmitter {
     dev.error = null
     this.publish(dev)
 
-    const conn = new ScpiConnection(dev.config.host, dev.config.port)
+    const conn = new ScpiConnection(dev.config.host, dev.config.port, {
+      idleCommand: deviceTypeInfo(dev.config.kind).idleCommand
+    })
     try {
       await conn.connect()
     } catch (err) {
@@ -387,7 +395,10 @@ export class DeviceManager extends EventEmitter {
   private startPolling(dev: ManagedDevice): void {
     this.stopPolling(dev)
     dev.pollCount = 0
-    dev.pollTimer = setInterval(() => void this.poll(dev), this.pollIntervalMs)
+    const intervalMs = pollIntervalFor(dev.config.kind, this.pollIntervalOverride)
+    dev.pollTimer = setInterval(() => void this.poll(dev), intervalMs)
+    // İlk ölçüm aralığı beklemeden gelsin (10 s'lik türlerde önemli)
+    void this.poll(dev)
   }
 
   private stopPolling(dev: ManagedDevice): void {
@@ -420,8 +431,11 @@ export class DeviceManager extends EventEmitter {
           mode
         }
       }
-      // Her 4. döngüde trip ve tracking denetimi
-      if (dev.pollCount % 4 === 0) {
+      // Trip ve tracking denetimi: hızlı yoklayan türlerde her 4. turda (≈2 s),
+      // ≥2 s aralıklı türlerde (CPX 10 s) her turda
+      const intervalMs = pollIntervalFor(dev.config.kind, this.pollIntervalOverride)
+      const checkEvery = intervalMs >= 2000 ? 1 : 4
+      if (dev.pollCount % checkEvery === 0) {
         for (let ch = 1; ch <= driver.channelCount; ch++) {
           const lsr = await driver.readLsr(ch)
           if (lsr & LSR_OVP) this.addTrip(dev, ch, 'ovp')
@@ -502,6 +516,13 @@ export class DeviceManager extends EventEmitter {
   }
 
   // ---- Kontrol komutları ----
+
+  /** Kullanıcı isteğiyle anında bir yoklama turu (bağlı değilse veya meşgulse sessizce döner). */
+  async refresh(id: string): Promise<void> {
+    const dev = this.get(id)
+    if (this.isProbe(dev)) return
+    await this.poll(dev)
+  }
 
   async setVoltage(id: string, ch: number, volts: number): Promise<void> {
     const { dev, driver } = this.requireUnlocked(id)
