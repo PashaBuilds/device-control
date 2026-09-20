@@ -49,9 +49,12 @@ Değerler: `cpx400dp` → `pollIntervalMs: 10000, idleCommand: 'LOCAL'`;
 
 ### 2. LOCAL mekanizması (`src/main/scpi/connection.ts`)
 
-`ScpiConnectionOptions`'a `idleCommand?: string`. Kuyruk boşalıp
-`inFlight` kalmadığında (yani `pump()` yapacak iş bulamadığında) ve son
-yazılan satır zaten `idleCommand` değilse, `idleCommand` **bir kez** yazılır:
+`ScpiConnectionOptions`'a `idleCommand?: string` ve `idleDelayMs?: number`
+(varsayılan 10). Kuyruk boşalıp `inFlight` kalmadığında kısa bir tampon
+(`idleDelayMs`) beklenir — art arda `await`lenen komutlar (`V1 5` → `EER?`)
+arasına idle komutu girmesin diye; yeni komut gelirse iptal edilir. Tampon
+sonunda kuyruk hâlâ boşsa ve son yazılan satır zaten `idleCommand` değilse,
+`idleCommand` **bir kez** yazılır:
 yanıt beklenmez, log kaynağı `'poll'` (SCPI konsolunda görünür, gizlenmez).
 Art arda iki `LOCAL` gönderilmez. Bağlantı kapalıyken gönderilmez.
 
@@ -87,11 +90,9 @@ ile oluşturur.
 
 ### 5. Simülatör (`tools/simulator/cpx400dp-sim.ts`)
 
-REMOTE/LOCAL durumu: `remote` bayrağı; herhangi bir komut/sorgu alınca
-`true`, `LOCAL` alınca `false`. Test için `SIM:REMOTE?` sorgusu (`0`/`1`)
-— bu sorgu da gerçek cihazdaki gibi `remote=true` yapar, o yüzden testler
-durumu `sim.remote` alanından okur; `SIM:REMOTE?` yalnızca e2e/elle deneme
-için.
+REMOTE/LOCAL durumu: `remote` bayrağı; `SIM:` öneksiz her komut/sorgu alınca
+`true`, `LOCAL` alınca `false`. `SIM:` komutları (test kancaları) durumu
+değiştirmez; `SIM:REMOTE?` `0`/`1` döner.
 
 ### 6. Testler
 
