@@ -3,6 +3,9 @@ import { join } from 'node:path'
 import { DeviceManager } from './deviceManager'
 import { registerIpcHandlers } from './ipcHandlers'
 
+// Paket yalnız tr.pak içerir: sistem dili ne olursa olsun Chromium Türkçe yerel ayarı kullansın
+app.commandLine.appendSwitch('lang', 'tr')
+
 let manager: DeviceManager | null = null
 
 function createWindow(): BrowserWindow {

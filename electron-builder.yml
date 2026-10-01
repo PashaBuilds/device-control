@@ -6,6 +6,10 @@ directories:
   output: release
   buildResources: build
 
+# Yalnız Türkçe arayüz: diğer Chromium dil paketleri (~46 MB) pakete girmez
+electronLanguages:
+  - tr
+
 files:
   - out/**
   - package.json
