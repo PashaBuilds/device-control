@@ -262,6 +262,29 @@ async function main(): Promise<void> {
     ok('Tek kanal arayüzü doğru: 1 kart, Tümünü Aç yok, OCP yok, tracking yok')
     await shot(page, '08-n5745a')
 
+    // Diğer tema: tercih kalıcı, yeniden yüklemede uygulanır; bağlantılar ana süreçte sürer
+    const before = await page.evaluate(() => document.documentElement.getAttribute('data-theme'))
+    const other = before === 'light' ? 'dark' : 'light'
+    await page.evaluate((t) => localStorage.setItem('ui-theme', t), other)
+    await page.reload()
+    await waitForText(page, 'CİHAZ KONTROL')
+    const theme = await page.evaluate(() => document.documentElement.getAttribute('data-theme'))
+    if (theme !== other) fail(`${other} tema uygulanmadı (${theme})`)
+    await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('.device-row')].find((r) => r.innerText.includes('Sim PSU 1'))?.click()
+    )
+    await waitForText(page, 'THURLBY THANDAR, CPX400DP', 10000)
+    await new Promise((r) => setTimeout(r, 1500))
+    ok(`${other === 'dark' ? 'Koyu' : 'Açık'} tema uygulandı ve panel yüklendi`)
+    await shot(page, '09-diger-tema')
+    await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('.device-row')].find((r) => r.innerText.includes('Lynq'))?.click()
+    )
+    await waitForText(page, 'xc7z045', 10000)
+    await new Promise((r) => setTimeout(r, 800))
+    await shot(page, '10-diger-tema-jtag')
+    await page.evaluate((t) => localStorage.setItem('ui-theme', t ?? 'dark'), before)
+
     console.log('\nDuman testi BAŞARILI — görüntüler: ' + SHOTS)
   } catch (err) {
     // Teşhis: hata anındaki görüntü ve sayfa metni

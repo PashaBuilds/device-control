@@ -29,8 +29,10 @@ yanına yenileri eklenebilir.
   gerilim/akım/OVP/OCP ve izleme modu değiştirilemez (arayüzde devre dışı kalır ve
   komut katmanında da reddedilir); çıkış aç/kapat ve trip sıfırlama çalışmaya devam
   eder. Kilit durumu cihaz kaydıyla birlikte kalıcıdır.
-- **Açık/Koyu tema**: kenar çubuğu altındaki düğmeyle geçiş; tercih kalıcı, ilk açılışta
-  sistem tercihine uyar. Her cihaz satırında ve panel başlığında cihaz **modeli** (ör.
+- **Açık/Koyu tema, "Karma" palet**: grafit (koyu) / sıcak kâğıt (açık) zemin, bakır
+  marka ve eylem vurgusu; gerilim camgöbeği, akım amber, bağlı/açık fosfor yeşili, prob/JTAG
+  lila. Tüm metin renkleri zeminde WCAG AA kontrastında (`tests/palette.test.ts`). Kenar
+  çubuğu altındaki düğmeyle geçiş; tercih kalıcı, ilk açılışta sistem tercihine uyar. Her cihaz satırında ve panel başlığında cihaz **modeli** (ör.
   Aim-TTi CPX400DP / Keysight E36233A / Keysight N5745A) etiketle gösterilir.
 - **Trend grafiği**: kanal başına canlı V/I eğrileri (1/5/30 dk pencere), CSV dışa aktarım.
 - **SCPI konsolu**: ham komut gönderme + tüm trafiğin zaman damgalı kaydı.
@@ -76,13 +78,21 @@ Ayrıca renderer düz tarayıcıda açılırsa (Electron dışı) protokol model
 npm run build && npm run e2e   # gerçek Electron + 2 TCP simülatörü, CDP ile sürülür
 ```
 
-## Windows paketi üretme (macOS üzerinden)
+## Windows paketi üretme
 
 ```bash
 npm run dist:win
 ```
 
-`release/` altına NSIS kurulum sihirbazı ve taşınabilir `.exe` üretilir.
+`release/` altına NSIS kurulum sihirbazı ve taşınabilir `.exe` üretilir (Windows'ta;
+taşınabilir exe `tools/build-portable.mjs` ile, electron-builder'ın indirdiği NSIS kullanılarak
+derlenir).
+
+**Taşınabilir exe nasıl çalışır:** her sürümün ilk açılışında uygulama dosyaları
+`%LOCALAPPDATA%\CihazKontrolpp-<sürüm>-<özet>` klasörüne bir kez açılır (~7 sn,
+"ilk kez hazırlanıyor" bildirimi görünür). Sonraki açılışlarda bu adım atlanır ve uygulama
+~1 sn'de açılır. Yeni sürüm ilk açıldığında eski sürüm klasörleri silinir. Kullanıcı
+verileri (cihaz listesi vb.) her zamanki gibi `%APPDATA%\cihaz-kontrol` altındadır.
 Paket imzasızdır; ilk çalıştırmada SmartScreen uyarısı normaldir
 ("Ek bilgi → Yine de çalıştır").
 

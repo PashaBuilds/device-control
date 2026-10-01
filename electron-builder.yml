@@ -6,6 +6,10 @@ directories:
   output: release
   buildResources: build
 
+# Yalnız Türkçe arayüz: diğer Chromium dil paketleri (~46 MB) pakete girmez
+electronLanguages:
+  - tr
+
 files:
   - out/**
   - package.json
@@ -15,17 +19,14 @@ win:
   target:
     - target: nsis
       arch: [x64]
-    - target: portable
-      arch: [x64]
+  # Taşınabilir exe electron-builder ile değil tools/build-portable.mjs ile üretilir
+  # (sürüm başına bir kez açılan önbellekli başlatıcı; açılış ~0,8 s)
 
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: always
   shortcutName: Cihaz Kontrol
-
-portable:
-  artifactName: CihazKontrol-${version}-portable.exe
 
 # Kod imzalama v1 kapsamı dışında (SmartScreen uyarısı normaldir)
 forceCodeSigning: false

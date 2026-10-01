@@ -3,6 +3,7 @@ import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
 import { tr } from '../../i18n/tr'
 import { getHistory, toCsv } from '../../state/history'
+import { useAppStore } from '../../state/store'
 
 interface Props {
   deviceId: string
@@ -16,31 +17,51 @@ const WINDOWS = [
   { label: tr.chart.window30m, seconds: 1800 }
 ] as const
 
-// Kanal serisi renkleri: gerilim soğuk (camgöbeği), akım sıcak (amber);
-// 2. kanal kesikli çizgiyle ayrışır.
-const V_COLOR = '#5ec1f2'
-const A_COLOR = '#f2b356'
+interface ChartColors {
+  volt: string
+  amp: string
+  axis: string
+  grid: string
+  tick: string
+}
 
-function buildSeries(channelCount: number): uPlot.Series[] {
+/**
+ * Grafik renkleri tema tokenlarından okunur (gerilim camgöbeği, akım amber);
+ * tema değişince grafik yeniden kurulur. 2. kanal kesikli çizgiyle ayrışır.
+ */
+function chartColors(): ChartColors {
+  const css = getComputedStyle(document.documentElement)
+  const v = (name: string): string => css.getPropertyValue(name).trim()
+  return { volt: v('--volt'), amp: v('--amp'), axis: v('--text-3'), grid: v('--line'), tick: v('--line-strong') }
+}
+
+/** "#rrggbb" + alfa → canvas'ın anladığı "rgba(r, g, b, a)". */
+function withAlpha(hex: string, alpha: number): string {
+  const m = hex.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i)
+  if (!m) return hex
+  return `rgba(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}, ${alpha})`
+}
+
+function buildSeries(channelCount: number, c: ChartColors): uPlot.Series[] {
   const series: uPlot.Series[] = [{}]
   for (let ch = 1; ch <= channelCount; ch++) {
     series.push({
       label: tr.chart.voltage(ch),
-      stroke: V_COLOR,
+      stroke: c.volt,
       width: 1.6,
       dash: ch === 2 ? [6, 4] : undefined,
       // yalnızca düz çizgili 1. kanal alan dolgusu alır — okunaklılık korunur
-      fill: ch === 1 ? 'rgba(94, 193, 242, 0.07)' : undefined,
+      fill: ch === 1 ? withAlpha(c.volt, 0.07) : undefined,
       scale: 'V',
       points: { show: false },
       value: (_u, v) => (v == null ? '—' : `${v.toFixed(2)} V`)
     })
     series.push({
       label: tr.chart.current(ch),
-      stroke: A_COLOR,
+      stroke: c.amp,
       width: 1.6,
       dash: ch === 2 ? [6, 4] : undefined,
-      fill: ch === 1 ? 'rgba(242, 179, 86, 0.055)' : undefined,
+      fill: ch === 1 ? withAlpha(c.amp, 0.055) : undefined,
       scale: 'A',
       points: { show: false },
       value: (_u, v) => (v == null ? '—' : `${v.toFixed(2)} A`)
@@ -49,11 +70,13 @@ function buildSeries(channelCount: number): uPlot.Series[] {
   return series
 }
 
-const AXIS_STYLE: Partial<uPlot.Axis> = {
-  stroke: '#55637c',
-  grid: { stroke: 'rgba(148, 170, 200, 0.07)', width: 1 },
-  ticks: { stroke: 'rgba(148, 170, 200, 0.15)', width: 1 },
-  font: '10.5px "IBM Plex Mono"'
+function axisStyle(c: ChartColors): Partial<uPlot.Axis> {
+  return {
+    stroke: c.axis,
+    grid: { stroke: withAlpha(c.grid, 0.6), width: 1 },
+    ticks: { stroke: c.tick, width: 1 },
+    font: '10.5px "IBM Plex Mono"'
+  }
 }
 
 export function TrendChart({ deviceId, deviceName, channelCount }: Props): React.JSX.Element {
@@ -62,16 +85,19 @@ export function TrendChart({ deviceId, deviceName, channelCount }: Props): React
   const [windowSec, setWindowSec] = useState<number>(300)
   const windowRef = useRef(windowSec)
   windowRef.current = windowSec
+  const theme = useAppStore((s) => s.theme)
 
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
 
+    const colors = chartColors()
+    const axis = axisStyle(colors)
     const plot = new uPlot(
       {
         width: el.clientWidth,
         height: 240,
-        series: buildSeries(channelCount),
+        series: buildSeries(channelCount, colors),
         legend: { live: true },
         cursor: { y: false },
         scales: {
@@ -80,10 +106,10 @@ export function TrendChart({ deviceId, deviceName, channelCount }: Props): React
           A: { auto: true, range: (_u, min, max) => [Math.min(0, min), Math.max(0.5, max * 1.1)] }
         },
         axes: [
-          { ...AXIS_STYLE },
-          { ...AXIS_STYLE, scale: 'V', label: 'V', labelFont: '11px "IBM Plex Mono"' },
+          { ...axis },
+          { ...axis, scale: 'V', label: 'V', labelFont: '11px "IBM Plex Mono"' },
           {
-            ...AXIS_STYLE,
+            ...axis,
             scale: 'A',
             label: 'A',
             labelFont: '11px "IBM Plex Mono"',
@@ -125,7 +151,7 @@ export function TrendChart({ deviceId, deviceName, channelCount }: Props): React
       plot.destroy()
       plotRef.current = null
     }
-  }, [deviceId, channelCount])
+  }, [deviceId, channelCount, theme])
 
   const exportCsv = (): void => {
     const csv = toCsv(deviceId)
