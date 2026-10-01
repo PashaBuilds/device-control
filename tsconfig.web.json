@@ -19,6 +19,7 @@
     "src/shared/**/*.ts",
     "src/preload/index.d.ts",
     "tools/simulator/model.ts",
-    "tools/simulator/e36233a-model.ts"
+    "tools/simulator/e36233a-model.ts",
+    "tools/simulator/n5745a-model.ts"
   ]
 }
