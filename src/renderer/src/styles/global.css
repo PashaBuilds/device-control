@@ -1,44 +1,53 @@
 /* ---------------------------------------------------------------------------
    Cihaz Kontrol — tasarım değişkenleri
-   Estetik: "hassas enstrüman" — derin mavi-siyah zemin, ince hatlar,
-   camgöbeği (gerilim) / amber (akım) renk kodlaması, tabular rakamlar.
+   Estetik: "Karma" — Spec2Code esintili grafit zemin, bakır marka/eylem
+   vurgusu; veri renkleri: camgöbeği (gerilim), amber (akım), fosfor (bağlı/
+   açık), lila (prob/JTAG), mercan (tehlike). Doygun renkler yalnız veride ve
+   etkin öğelerde; tüm metin tokenları zeminde WCAG AA (tests/palette.test.ts).
 --------------------------------------------------------------------------- */
 
 :root {
-  /* Zemin katmanları */
-  --bg-app: #06090f;
-  --bg-panel: rgba(15, 20, 30, 0.72);
-  --bg-raised: rgba(21, 29, 43, 0.8);
-  --bg-inset: rgba(4, 7, 12, 0.75);
-  --bg-hover: rgba(28, 39, 58, 0.85);
-
-  /* Işımalar */
-  --glow-volt: rgba(94, 193, 242, 0.55);
-  --glow-ok: rgba(67, 221, 154, 0.5);
-  --glow-amp: rgba(242, 179, 86, 0.55);
-  --glow-danger: rgba(255, 93, 93, 0.55);
+  /* Zemin katmanları (grafit) */
+  --bg-app: #0a0d12;
+  --bg-panel: rgba(18, 22, 29, 0.74);
+  --bg-raised: rgba(24, 29, 38, 0.82);
+  --bg-inset: rgba(7, 9, 13, 0.78);
+  --bg-hover: rgba(32, 39, 50, 0.86);
 
   /* Çizgiler */
-  --line: #1c2534;
-  --line-strong: #263248;
-  --line-focus: #3d5a80;
+  --line: #222a35;
+  --line-strong: #2e3846;
+  --line-focus: #c98a55;
 
   /* Metin */
-  --text-1: #e8edf5;
-  --text-2: #93a1b8;
-  --text-3: #55637c;
+  --text-1: #e4e9ef;
+  --text-2: #97a2b0;
+  --text-3: #6b7684;
 
   /* Anlam renkleri */
-  --volt: #5ec1f2; /* gerilim / CV */
-  --volt-dim: rgba(94, 193, 242, 0.14);
-  --amp: #f2b356; /* akım / CC */
-  --amp-dim: rgba(242, 179, 86, 0.14);
-  --ok: #43dd9a; /* bağlı, çıkış açık */
-  --ok-dim: rgba(67, 221, 154, 0.12);
-  --warn: #f2b356;
-  --danger: #ff5d5d;
-  --danger-dim: rgba(255, 93, 93, 0.12);
-  --accent: #5ec1f2;
+  --accent: #ec9f5d; /* bakır: marka, birincil eylem, odak */
+  --volt: #46d3f5; /* gerilim / CV */
+  --amp: #ffb454; /* akım / CC */
+  --ok: #34e0a1; /* bağlı, çıkış açık */
+  --warn: #ffb454;
+  --danger: #ff5d7a;
+  --probe: #a98bff; /* debug probu / JTAG */
+
+  /* Türetilmiş tonlar */
+  --accent-dim: color-mix(in srgb, var(--accent) 14%, transparent);
+  --volt-dim: color-mix(in srgb, var(--volt) 14%, transparent);
+  --amp-dim: color-mix(in srgb, var(--amp) 14%, transparent);
+  --ok-dim: color-mix(in srgb, var(--ok) 12%, transparent);
+  --danger-dim: color-mix(in srgb, var(--danger) 12%, transparent);
+  --probe-dim: color-mix(in srgb, var(--probe) 14%, transparent);
+
+  /* Işımalar */
+  --glow-accent: color-mix(in srgb, var(--accent) 50%, transparent);
+  --glow-volt: color-mix(in srgb, var(--volt) 55%, transparent);
+  --glow-ok: color-mix(in srgb, var(--ok) 50%, transparent);
+  --glow-amp: color-mix(in srgb, var(--amp) 55%, transparent);
+  --glow-danger: color-mix(in srgb, var(--danger) 55%, transparent);
+  --glow-probe: color-mix(in srgb, var(--probe) 50%, transparent);
 
   /* Tipografi */
   --font-ui: 'IBM Plex Sans', sans-serif;
@@ -69,9 +78,9 @@ body {
   font-size: 13px;
   color: var(--text-1);
   background:
-    radial-gradient(1100px 720px at 82% -12%, rgba(38, 88, 140, 0.22), transparent 62%),
-    radial-gradient(900px 640px at -8% 108%, rgba(28, 108, 96, 0.14), transparent 60%),
-    radial-gradient(700px 480px at 50% 55%, rgba(58, 78, 128, 0.07), transparent 70%),
+    radial-gradient(1100px 720px at 82% -12%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 62%),
+    radial-gradient(900px 640px at -8% 108%, color-mix(in srgb, var(--volt) 8%, transparent), transparent 60%),
+    radial-gradient(700px 480px at 50% 55%, color-mix(in srgb, var(--probe) 5%, transparent), transparent 70%),
     var(--bg-app);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
@@ -86,8 +95,8 @@ body {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(560px 420px at 30% 30%, rgba(94, 193, 242, 0.05), transparent 70%),
-    radial-gradient(640px 480px at 70% 70%, rgba(67, 221, 154, 0.035), transparent 70%);
+    radial-gradient(560px 420px at 30% 30%, color-mix(in srgb, var(--volt) 5%, transparent), transparent 70%),
+    radial-gradient(640px 480px at 70% 70%, color-mix(in srgb, var(--accent) 4%, transparent), transparent 70%);
   animation: aurora-drift 36s ease-in-out infinite alternate;
 }
 @keyframes aurora-drift {
@@ -164,16 +173,16 @@ button {
 }
 .led.on {
   background: var(--ok);
-  box-shadow: 0 0 6px rgba(67, 221, 154, 0.7);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 70%, transparent);
 }
 .led.busy {
   background: var(--amp);
-  box-shadow: 0 0 6px rgba(242, 179, 86, 0.7);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--amp) 70%, transparent);
   animation: led-pulse 1s ease-in-out infinite;
 }
 .led.err {
   background: var(--danger);
-  box-shadow: 0 0 6px rgba(255, 93, 93, 0.7);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--danger) 70%, transparent);
 }
 @keyframes led-pulse {
   50% {
@@ -213,20 +222,20 @@ button {
   pointer-events: none;
 }
 .btn.primary {
-  background: rgba(94, 193, 242, 0.12);
-  border-color: rgba(94, 193, 242, 0.45);
-  color: var(--volt);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
 }
 .btn.primary:hover {
-  background: rgba(94, 193, 242, 0.2);
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
 }
 .btn.danger {
   background: var(--danger-dim);
-  border-color: rgba(255, 93, 93, 0.45);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
   color: var(--danger);
 }
 .btn.danger:hover {
-  background: rgba(255, 93, 93, 0.2);
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
 }
 .btn.ghost {
   background: transparent;
@@ -315,10 +324,10 @@ button {
   border-radius: 8px;
   display: grid;
   place-items: center;
-  background: linear-gradient(145deg, #14263a, #0d1826);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 22%, var(--bg-raised)), var(--bg-inset));
   border: 1px solid var(--line-strong);
-  color: var(--volt);
-  box-shadow: 0 0 16px rgba(94, 193, 242, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: var(--accent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 18%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 .sidebar-brand .name {
   font-family: var(--font-display);
@@ -326,7 +335,7 @@ button {
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  background: linear-gradient(90deg, #e8edf5, #9cc8e8);
+  background: linear-gradient(90deg, var(--text-1), var(--accent));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -381,6 +390,7 @@ button {
 .device-row.selected {
   background: var(--bg-raised);
   border-color: var(--line-strong);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 .device-row .info {
   flex: 1;
@@ -460,10 +470,10 @@ button {
   border-radius: 18px;
   display: grid;
   place-items: center;
-  background: linear-gradient(145deg, #14263a, #0d1826);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 22%, var(--bg-raised)), var(--bg-inset));
   border: 1px solid var(--line-strong);
-  color: var(--volt);
-  box-shadow: 0 0 40px -6px rgba(94, 193, 242, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: var(--accent);
+  box-shadow: 0 0 40px -6px color-mix(in srgb, var(--accent) 35%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   animation: glyph-float 5s ease-in-out infinite;
 }
 @keyframes glyph-float {
@@ -660,12 +670,12 @@ button {
   transition: transform 0.18s, background 0.18s;
 }
 .switch.on {
-  background: rgba(94, 193, 242, 0.25);
-  border-color: rgba(94, 193, 242, 0.5);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 .switch.on::after {
   transform: translateX(16px);
-  background: var(--volt);
+  background: var(--accent);
 }
 
 /* Trip bandı */
@@ -675,13 +685,13 @@ button {
   gap: 12px;
   margin: 14px 20px 0;
   padding: 11px 14px;
-  border: 1px solid rgba(255, 93, 93, 0.55);
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
   background:
-    radial-gradient(300px 60px at 8% 50%, rgba(255, 93, 93, 0.16), transparent 70%),
+    radial-gradient(300px 60px at 8% 50%, color-mix(in srgb, var(--danger) 16%, transparent), transparent 70%),
     rgba(42, 15, 18, 0.8);
   backdrop-filter: blur(8px);
   border-radius: var(--radius-sm);
-  color: #ffb4b4;
+  color: color-mix(in srgb, var(--danger) 45%, var(--text-1));
   font-weight: 500;
   animation: trip-flash 1.2s ease-in-out infinite, stage-in 0.35s ease both;
   box-shadow: 0 0 32px -6px var(--glow-danger);
@@ -696,7 +706,7 @@ button {
 }
 @keyframes trip-flash {
   50% {
-    border-color: rgba(255, 93, 93, 1);
+    border-color: var(--danger);
     box-shadow: 0 0 48px -4px var(--glow-danger);
   }
 }
@@ -709,8 +719,8 @@ button {
   transform: translateX(-50%);
   z-index: 210;
   background: #2a1216;
-  border: 1px solid rgba(255, 93, 93, 0.55);
-  color: #ffb4b4;
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+  color: color-mix(in srgb, var(--danger) 45%, var(--text-1));
   padding: 9px 16px;
   border-radius: var(--radius-sm);
   font-size: 12.5px;
@@ -743,10 +753,10 @@ button {
   animation-delay: 90ms;
 }
 .channel-card.output-on {
-  border-color: rgba(67, 221, 154, 0.4);
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
   box-shadow:
     0 18px 44px rgba(0, 0, 0, 0.35),
-    0 0 0 1px rgba(67, 221, 154, 0.12),
+    0 0 0 1px color-mix(in srgb, var(--ok) 12%, transparent),
     0 0 36px -6px var(--glow-ok),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
   animation: breathe 3.2s ease-in-out infinite;
@@ -755,7 +765,7 @@ button {
   50% {
     box-shadow:
       0 18px 44px rgba(0, 0, 0, 0.35),
-      0 0 0 1px rgba(67, 221, 154, 0.2),
+      0 0 0 1px color-mix(in srgb, var(--ok) 20%, transparent),
       0 0 52px -4px var(--glow-ok),
       inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
@@ -796,14 +806,14 @@ button {
 .mode-badge.cv {
   color: var(--volt);
   background: var(--volt-dim);
-  border-color: rgba(94, 193, 242, 0.4);
-  box-shadow: 0 0 12px rgba(94, 193, 242, 0.22);
+  border-color: color-mix(in srgb, var(--volt) 40%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--volt) 22%, transparent);
 }
 .mode-badge.cc {
   color: var(--amp);
   background: var(--amp-dim);
-  border-color: rgba(242, 179, 86, 0.4);
-  box-shadow: 0 0 12px rgba(242, 179, 86, 0.25);
+  border-color: color-mix(in srgb, var(--amp) 40%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--amp) 25%, transparent);
   animation: led-pulse 2.4s ease-in-out infinite;
 }
 .mode-badge.off {
@@ -834,8 +844,8 @@ button {
 .output-toggle.on {
   color: var(--ok);
   background: var(--ok-dim);
-  border-color: rgba(67, 221, 154, 0.55);
-  box-shadow: 0 0 18px rgba(67, 221, 154, 0.28), inset 0 0 10px rgba(67, 221, 154, 0.08);
+  border-color: color-mix(in srgb, var(--ok) 55%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--ok) 28%, transparent), inset 0 0 10px color-mix(in srgb, var(--ok) 8%, transparent);
 }
 .output-toggle .dot {
   width: 7px;
@@ -844,7 +854,7 @@ button {
   background: currentColor;
 }
 .output-toggle.on .dot {
-  box-shadow: 0 0 6px rgba(67, 221, 154, 0.8);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 80%, transparent);
 }
 
 /* Ölçüm göstergeleri */
@@ -852,7 +862,7 @@ button {
   display: grid;
   grid-template-columns: 1.2fr 1.2fr 1fr;
   background:
-    radial-gradient(340px 120px at 20% 0%, rgba(94, 193, 242, 0.045), transparent 70%),
+    radial-gradient(340px 120px at 20% 0%, color-mix(in srgb, var(--volt) 4.5%, transparent), transparent 70%),
     var(--bg-inset);
   border-bottom: 1px solid var(--line);
 }
@@ -874,12 +884,12 @@ button {
   transition: color 0.3s, text-shadow 0.5s;
 }
 .readout.volt:not(.dim) .value {
-  color: #d9f1ff;
-  text-shadow: 0 0 18px rgba(94, 193, 242, 0.35);
+  color: color-mix(in srgb, var(--volt) 35%, var(--text-1));
+  text-shadow: 0 0 18px color-mix(in srgb, var(--volt) 35%, transparent);
 }
 .readout.amp:not(.dim) .value {
   color: #ffeeD3;
-  text-shadow: 0 0 18px rgba(242, 179, 86, 0.3);
+  text-shadow: 0 0 18px color-mix(in srgb, var(--amp) 30%, transparent);
 }
 .readout.watt:not(.dim) .value {
   text-shadow: 0 0 14px rgba(232, 237, 245, 0.18);
@@ -938,8 +948,8 @@ button {
   border-color: var(--line-focus);
 }
 .sp-control.pending {
-  border-color: rgba(242, 179, 86, 0.55);
-  box-shadow: 0 0 0 1px rgba(242, 179, 86, 0.2);
+  border-color: color-mix(in srgb, var(--amp) 55%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--amp) 20%, transparent);
 }
 .sp-control input {
   flex: 1;
@@ -1177,8 +1187,8 @@ button {
 .lock-btn.locked {
   color: var(--amp);
   background: var(--amp-dim);
-  border-color: rgba(242, 179, 86, 0.55);
-  box-shadow: 0 0 10px rgba(242, 179, 86, 0.12);
+  border-color: color-mix(in srgb, var(--amp) 55%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--amp) 12%, transparent);
 }
 
 .switch-label:disabled {
@@ -1278,9 +1288,9 @@ button {
   color: var(--text-2);
 }
 .chip.target {
-  color: var(--volt);
-  background: var(--volt-dim);
-  border-color: rgba(94, 193, 242, 0.4);
+  color: var(--probe);
+  background: var(--probe-dim);
+  border-color: color-mix(in srgb, var(--probe) 40%, transparent);
   font-size: 12px;
   padding: 4px 11px;
 }
@@ -1300,7 +1310,7 @@ button {
   color: var(--text-2);
 }
 .poll-toggle input {
-  accent-color: var(--volt);
+  accent-color: var(--accent);
 }
 .scpi-line.poll {
   opacity: 0.5;
@@ -1358,7 +1368,7 @@ button {
   min-width: 24px;
   flex: 0 0 24px;
   height: 2px;
-  background: linear-gradient(90deg, rgba(94, 193, 242, 0.25), rgba(94, 193, 242, 0.6));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--probe) 25%, transparent), color-mix(in srgb, var(--probe) 60%, transparent));
   position: relative;
 }
 /* akış noktası */
@@ -1370,8 +1380,8 @@ button {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--volt);
-  box-shadow: 0 0 8px var(--glow-volt);
+  background: var(--probe);
+  box-shadow: 0 0 8px var(--glow-probe);
   transform: translateY(-50%);
   animation: jtag-flow 1.8s linear infinite;
 }
@@ -1398,18 +1408,18 @@ button {
 .jtag-node {
   flex-shrink: 0;
   min-width: 150px;
-  background: linear-gradient(180deg, rgba(94, 193, 242, 0.08), rgba(94, 193, 242, 0.02));
-  border: 1px solid rgba(94, 193, 242, 0.35);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--probe) 8%, transparent), color-mix(in srgb, var(--probe) 2%, transparent));
+  border: 1px solid color-mix(in srgb, var(--probe) 35%, transparent);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
-  box-shadow: 0 0 20px -8px var(--glow-volt), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 0 0 20px -8px var(--glow-probe), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   animation: stage-in 0.4s cubic-bezier(0.22, 0.9, 0.3, 1) both;
 }
 .jtag-node-name {
   font-family: var(--font-display);
   font-size: 13.5px;
   font-weight: 600;
-  color: #d9f1ff;
+  color: color-mix(in srgb, var(--probe) 30%, var(--text-1));
   margin-bottom: 7px;
   letter-spacing: 0.02em;
 }
@@ -1455,9 +1465,9 @@ button {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--volt);
-  background: var(--volt-dim);
-  border: 1px solid rgba(94, 193, 242, 0.3);
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   border-radius: 99px;
   padding: 3px 9px;
   white-space: nowrap;
@@ -1487,48 +1497,54 @@ button {
    ======================================================================= */
 
 :root[data-theme='light'] {
-  --bg-app: #e8ecf3;
-  --bg-panel: rgba(255, 255, 255, 0.72);
-  --bg-raised: rgba(255, 255, 255, 0.86);
-  --bg-inset: rgba(238, 242, 248, 0.9);
-  --bg-hover: rgba(223, 231, 242, 0.9);
+  --bg-app: #f4f2ee;
+  --bg-panel: rgba(255, 255, 255, 0.74);
+  --bg-raised: rgba(255, 255, 255, 0.88);
+  --bg-inset: rgba(240, 237, 231, 0.9);
+  --bg-hover: rgba(232, 228, 221, 0.92);
 
-  --glow-volt: rgba(31, 143, 208, 0.3);
-  --glow-ok: rgba(18, 153, 106, 0.28);
-  --glow-amp: rgba(190, 122, 20, 0.28);
-  --glow-danger: rgba(214, 61, 61, 0.28);
+  --line: #e2dcd3;
+  --line-strong: #cfc7bb;
+  --line-focus: #c27a40;
 
-  --line: #d6dde8;
-  --line-strong: #c2ccda;
-  --line-focus: #7aa8d6;
+  --text-1: #1b2129;
+  --text-2: #4c5663;
+  --text-3: #7a838e;
 
-  --text-1: #16202e;
-  --text-2: #4a586b;
-  --text-3: #8592a4;
+  --accent: #a05b1d;
+  --volt: #0a7698;
+  --amp: #9e5c00;
+  --ok: #0a7c55;
+  --warn: #9e5c00;
+  --danger: #c8304f;
+  --probe: #6a4fd1;
 
-  --volt: #1f8fd0;
-  --volt-dim: rgba(31, 143, 208, 0.12);
-  --amp: #b7791a;
-  --amp-dim: rgba(190, 122, 20, 0.14);
-  --ok: #12996a;
-  --ok-dim: rgba(18, 153, 106, 0.12);
-  --warn: #b7791a;
-  --danger: #d63d3d;
-  --danger-dim: rgba(214, 61, 61, 0.1);
-  --accent: #1f8fd0;
+  --accent-dim: color-mix(in srgb, var(--accent) 12%, transparent);
+  --volt-dim: color-mix(in srgb, var(--volt) 12%, transparent);
+  --amp-dim: color-mix(in srgb, var(--amp) 12%, transparent);
+  --ok-dim: color-mix(in srgb, var(--ok) 12%, transparent);
+  --danger-dim: color-mix(in srgb, var(--danger) 10%, transparent);
+  --probe-dim: color-mix(in srgb, var(--probe) 12%, transparent);
+
+  --glow-accent: color-mix(in srgb, var(--accent) 28%, transparent);
+  --glow-volt: color-mix(in srgb, var(--volt) 28%, transparent);
+  --glow-ok: color-mix(in srgb, var(--ok) 28%, transparent);
+  --glow-amp: color-mix(in srgb, var(--amp) 28%, transparent);
+  --glow-danger: color-mix(in srgb, var(--danger) 28%, transparent);
+  --glow-probe: color-mix(in srgb, var(--probe) 28%, transparent);
 }
 
 /* Zemin ve atmosfer */
 :root[data-theme='light'] body {
   background:
-    radial-gradient(1100px 720px at 82% -12%, rgba(120, 170, 220, 0.28), transparent 60%),
-    radial-gradient(900px 640px at -8% 108%, rgba(150, 205, 190, 0.22), transparent 58%),
+    radial-gradient(1100px 720px at 82% -12%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
+    radial-gradient(900px 640px at -8% 108%, color-mix(in srgb, var(--volt) 10%, transparent), transparent 58%),
     var(--bg-app);
 }
 :root[data-theme='light'] .app::before {
   background:
-    radial-gradient(560px 420px at 30% 30%, rgba(31, 143, 208, 0.05), transparent 70%),
-    radial-gradient(640px 480px at 70% 70%, rgba(18, 153, 106, 0.04), transparent 70%);
+    radial-gradient(560px 420px at 30% 30%, color-mix(in srgb, var(--volt) 5%, transparent), transparent 70%),
+    radial-gradient(640px 480px at 70% 70%, color-mix(in srgb, var(--accent) 4%, transparent), transparent 70%);
 }
 :root[data-theme='light'] .app::after {
   opacity: 0.025;
@@ -1540,29 +1556,29 @@ button {
 /* Cam yüzeyler — açık sürümler */
 :root[data-theme='light'] .sidebar {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(243, 246, 251, 0.92));
-  border-right: 1px solid rgba(60, 90, 130, 0.12);
+  border-right: 1px solid var(--line);
   box-shadow: 1px 0 20px rgba(40, 60, 95, 0.06);
 }
 :root[data-theme='light'] .topbar {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(248, 250, 253, 0.6));
-  border-bottom: 1px solid rgba(60, 90, 130, 0.12);
+  border-bottom: 1px solid var(--line);
 }
 :root[data-theme='light'] .channel-card,
 :root[data-theme='light'] .info-card {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent 40%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(249, 251, 253, 0.9));
-  border-color: rgba(60, 90, 130, 0.12);
+  border-color: var(--line);
   box-shadow: 0 14px 34px rgba(40, 60, 95, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 :root[data-theme='light'] .trend-section {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 250, 253, 0.85));
-  border-color: rgba(60, 90, 130, 0.12);
+  border-color: var(--line);
   box-shadow: 0 14px 34px rgba(40, 60, 95, 0.07);
 }
 :root[data-theme='light'] .dialog {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 253, 0.97));
-  border-color: rgba(60, 90, 130, 0.16);
+  border-color: var(--line-strong);
   box-shadow: 0 30px 70px rgba(30, 50, 80, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 :root[data-theme='light'] .dialog-backdrop {
@@ -1585,18 +1601,18 @@ button {
 :root[data-theme='light'] .channel-card.output-on {
   box-shadow:
     0 14px 34px rgba(40, 60, 95, 0.1),
-    0 0 0 1px rgba(18, 153, 106, 0.22),
+    0 0 0 1px color-mix(in srgb, var(--ok) 22%, transparent),
     0 0 30px -8px var(--glow-ok);
 }
 
 /* İkon karoları ve marka — açık temada aydınlık */
 :root[data-theme='light'] .sidebar-brand .logo,
 :root[data-theme='light'] .empty-state .glyph {
-  background: linear-gradient(145deg, #eaf3fb, #dbe8f5);
-  border-color: rgba(60, 90, 130, 0.18);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 12%, white), var(--bg-inset));
+  border-color: var(--line-strong);
 }
 :root[data-theme='light'] .sidebar-brand .name {
-  background: linear-gradient(90deg, #16202e, #1f6f9e);
+  background: linear-gradient(90deg, var(--text-1), var(--accent));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -1605,14 +1621,14 @@ button {
 /* Trip bandı açık kırmızı */
 :root[data-theme='light'] .trip-banner {
   background:
-    radial-gradient(300px 60px at 8% 50%, rgba(214, 61, 61, 0.12), transparent 70%),
+    radial-gradient(300px 60px at 8% 50%, color-mix(in srgb, var(--danger) 12%, transparent), transparent 70%),
     rgba(253, 235, 235, 0.9);
-  color: #b32d2d;
+  color: var(--danger);
 }
 :root[data-theme='light'] .toast {
-  background: #fdecec;
-  color: #b32d2d;
-  border-color: rgba(214, 61, 61, 0.4);
+  background: color-mix(in srgb, var(--danger) 9%, var(--bg-app));
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
 }
 
 /* Kaydırma çubuğu */
