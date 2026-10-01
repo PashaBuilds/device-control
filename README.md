@@ -5,6 +5,7 @@ TCP/IP ağı üzerinden laboratuvar/saha cihazlarını kontrol eden masaüstü u
 Desteklenen cihazlar:
 - **Aim-TTi CPX400DP** çift kanallı güç kaynağı (2×60V/20A, 420W) — SCPI, TCP 9221
 - **Keysight E36233A** çift kanallı güç kaynağı (2×30V/10A) — SCPI (E36200), TCP 5025
+- **Keysight N5745A** tek çıkışlı sistem güç kaynağı (30V/25A, 750W) — SCPI (N5700), TCP 5025
 - **Xilinx Hardware Server** (hw_server / SmartLynq DLC20-DLC30) — TCF, TCP 3121
 
 Mimari, yeni cihaz türlerinin *sürücü + panel* çifti eklenerek genişletilmesine göre
@@ -30,7 +31,7 @@ yanına yenileri eklenebilir.
   eder. Kilit durumu cihaz kaydıyla birlikte kalıcıdır.
 - **Açık/Koyu tema**: kenar çubuğu altındaki düğmeyle geçiş; tercih kalıcı, ilk açılışta
   sistem tercihine uyar. Her cihaz satırında ve panel başlığında cihaz **modeli** (ör.
-  Aim-TTi CPX400DP / Keysight E36233A) etiketle gösterilir.
+  Aim-TTi CPX400DP / Keysight E36233A / Keysight N5745A) etiketle gösterilir.
 - **Trend grafiği**: kanal başına canlı V/I eğrileri (1/5/30 dk pencere), CSV dışa aktarım.
 - **SCPI konsolu**: ham komut gönderme + tüm trafiğin zaman damgalı kaydı.
 - **Dayanıklılık**: bağlantı kopunca üstel geri çekilme ile otomatik yeniden bağlanma;
@@ -58,6 +59,7 @@ Gerçek donanım olmadan geliştirme/test için gerçek protokolleri konuşan TC
 ```bash
 npm run sim          # CPX400DP (SCPI), 127.0.0.1:9221 (npm run sim -- 9222 ile port değişir)
 npm run sim:e36233a  # Keysight E36233A (SCPI), 127.0.0.1:5025
+npm run sim:n5745a   # Keysight N5745A (SCPI), 127.0.0.1:5026
 npm run sim:lynq     # Xilinx Hardware Server (TCF), 127.0.0.1:3121
 ```
 
@@ -104,6 +106,23 @@ Paket imzasızdır; ilk çalıştırmada SmartScreen uyarısı normaldir
 
 Not: E36200 serisinde OCP ayrı bir seviye değildir (akım limitinde tetiklenir) ve kanal
 izleme modu yoktur; arayüz bu türde OCP alanını ve izleme anahtarını göstermez.
+
+## Saha kullanımı (Keysight N5745A)
+
+1. **Ağ:** uygulama yalnızca **TCP 5025**'i (SCPI soketi) kullanır. İsteğe bağlı: TCP 80
+   (cihaz web sayfası), TCP 5024 (telnet).
+2. **İlk bağlantı / MAC:** cihaz fabrikada DHCP açık gelir; DHCP yoksa AutoIP ile
+   169.254.x.x alır (3 dk'ya kadar sürebilir). Ön panelde IP/MAC gösterilmez. PC'yi
+   "IP'yi otomatik al"a alıp kabloyla bağlayın, cihaz açıldıktan sonra `arp -a` ile
+   169.254.x.x satırındaki IP'yi ve fiziksel (MAC) adresi okuyun. Varsayılan ad:
+   `A-N5745A-xxxxx` (xxxxx = seri no 5.–9. karakter).
+3. **Sabit IP:** en kolayı DHCP'yi açık bırakıp MAC adresine DHCP rezervasyonu yaptırmak.
+   Elle IP için cihaz web sayfası (View & Modify Configuration) kullanılır; sayfa eski
+   Java eklentisi isteyebilir.
+4. Uygulamada **Cihaz Ekle** → tür Keysight N5745A, IP ve port 5025.
+5. Uzak modda cihazın ön panel tuşları **açık kalır**; uygulama paneli kilitlemez.
+   OCP ayrı seviye değil, aç/kapattır ve uygulamada gösterilmez — gerekirse ön paneldeki
+   OCP tuşuyla açılır; trip olursa uygulamada uyarı bandı çıkar ve sıfırlanabilir.
 
 ## Saha kullanımı (Xilinx Hardware Server)
 

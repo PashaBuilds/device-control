@@ -22,6 +22,7 @@ import electronBin from 'electron'
 import { startCpx400dpSim, type SimHandle } from '../simulator/cpx400dp-sim'
 import { startSmartLynqSim, type SmartLynqSimHandle } from '../simulator/smartlynq-sim'
 import { startE36233aSim, type E36233aSimHandle } from '../simulator/e36233a-sim'
+import { startN5745aSim, type N5745aSimHandle } from '../simulator/n5745a-sim'
 
 const ROOT = resolve(__dirname, '../..')
 const SHOTS = process.env.E2E_SHOTS_DIR || join(ROOT, '.data/e2e-shots')
@@ -75,6 +76,7 @@ async function main(): Promise<void> {
   const sim2 = await startCpx400dpSim(9222)
   const lynq: SmartLynqSimHandle = await startSmartLynqSim(3121)
   const keysight: E36233aSimHandle = await startE36233aSim(5025)
+  const n5745a: N5745aSimHandle = await startN5745aSim(5026)
   sim1.sim.channels[0].loadOhms = 5 // 10V/5Ω = 2A
   keysight.sim.channels[0].loadOhms = 10 // 12V/10Ω = 1.2A
 
@@ -229,6 +231,37 @@ async function main(): Promise<void> {
     ok('Capability uyarlaması doğru: tracking yok, OCP yok, OVP var')
     await shot(page, '07-keysight')
 
+    // Keysight N5745A: ekle + bağlan + ölçüm + tek kanal arayüzü
+    await addDevice(page, 'N5745A PSU', 5026, 'n5745a')
+    ok('N5745A cihazı eklendi')
+    const nConnect = await page.waitForSelector('.topbar .btn.primary')
+    await nConnect!.click()
+    await waitForText(page, 'N5745A,US17M1234P', 15000)
+    ok('N5745A bağlandı, kimlik doğrulandı')
+    await page.evaluate(async () => {
+      const api = (window as unknown as { deviceApi: import('../../src/shared/ipc').DeviceApi })
+        .deviceApi
+      const d = (await api.listDevices()).find((x) => x.kind === 'n5745a')!
+      await api.setVoltage(d.id, 1, 12)
+      await api.setCurrent(d.id, 1, 5)
+      await api.setOutput(d.id, 1, true)
+    })
+    await waitForText(page, '12.00', 8000)
+    await waitForText(page, '1.20', 8000)
+    ok('N5745A ölçümü görünüyor (12.00 V / 1.20 A, 10 Ω yük)')
+    const nCaps = await page.evaluate(() => ({
+      cards: document.querySelectorAll('.channel-card').length,
+      allOn: document.body.innerText.includes('Tümünü Aç'),
+      ocp: document.body.innerText.includes('OCP'),
+      tracking: document.querySelectorAll('.switch-label').length
+    }))
+    if (nCaps.cards !== 1) fail(`N5745A'da 1 kanal kartı beklenirdi, ${nCaps.cards} bulundu`)
+    if (nCaps.allOn) fail("Tek kanallı cihazda 'Tümünü Aç' gösterilmemeli")
+    if (nCaps.ocp) fail('N5745A panelinde OCP alanı gösterilmemeli')
+    if (nCaps.tracking !== 0) fail('N5745A panelinde izleme modu gösterilmemeli')
+    ok('Tek kanal arayüzü doğru: 1 kart, Tümünü Aç yok, OCP yok, tracking yok')
+    await shot(page, '08-n5745a')
+
     console.log('\nDuman testi BAŞARILI — görüntüler: ' + SHOTS)
   } catch (err) {
     // Teşhis: hata anındaki görüntü ve sayfa metni
@@ -251,6 +284,7 @@ async function main(): Promise<void> {
     await sim2.close()
     await lynq.close()
     await keysight.close()
+    await n5745a.close()
   }
 }
 

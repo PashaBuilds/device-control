@@ -1,6 +1,6 @@
 {
   "name": "cihaz-kontrol",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "TCP/IP üzerinden laboratuvar cihazlarını kontrol eden masaüstü uygulaması",
   "main": "out/main/index.js",
   "author": "Mert Cukur",
@@ -16,7 +16,8 @@
     "dist:win": "electron-vite build && electron-builder --win --x64",
     "e2e": "tsx tools/e2e/smoke.ts",
     "sim:lynq": "tsx tools/simulator/smartlynq-cli.ts",
-    "sim:e36233a": "tsx tools/simulator/e36233a-cli.ts"
+    "sim:e36233a": "tsx tools/simulator/e36233a-cli.ts",
+    "sim:n5745a": "tsx tools/simulator/n5745a-cli.ts"
   },
   "dependencies": {
     "@fontsource/chakra-petch": "^5.2.7",

@@ -9,6 +9,7 @@
  */
 import { Cpx400dpSim } from '../../../../tools/simulator/model'
 import { E36233aSim } from '../../../../tools/simulator/e36233a-model'
+import { N5745aSim } from '../../../../tools/simulator/n5745a-model'
 import type {
   ChannelMeasurement,
   ChannelSetpoints,
@@ -25,7 +26,8 @@ const STORAGE_KEY = 'mock-devices'
 const LSR_OVP = 0b0100
 const LSR_OCP = 0b1000
 
-type PsuSim = Cpx400dpSim | E36233aSim
+type PsuSim = Cpx400dpSim | E36233aSim | N5745aSim
+type PsuKind = 'cpx400dp' | 'e36233a' | 'n5745a'
 
 interface MockDevice {
   config: DeviceConfig
@@ -68,7 +70,7 @@ interface Dialect {
   parse: (resp: string | null) => number
 }
 
-const DIALECTS: Record<'cpx400dp' | 'e36233a', Dialect> = {
+const DIALECTS: Record<PsuKind, Dialect> = {
   cpx400dp: {
     measV: (ch) => `V${ch}O?`,
     measI: (ch) => `I${ch}O?`,
@@ -102,11 +104,28 @@ const DIALECTS: Record<'cpx400dp' | 'e36233a', Dialect> = {
     errCmd: 'SYST:ERR?',
     tripResetCmd: 'OUTP:PROT:CLE (@1,2)',
     parse: numFirst
+  },
+  n5745a: {
+    measV: () => 'MEAS:VOLT?',
+    measI: () => 'MEAS:CURR?',
+    outQ: () => 'OUTP?',
+    vGet: () => 'VOLT?',
+    iGet: () => 'CURR?',
+    ovpGet: () => 'VOLT:PROT?',
+    vSet: (_ch, v) => `VOLT ${v.toFixed(4)}`,
+    iSet: (_ch, a) => `CURR ${a.toFixed(4)}`,
+    ovpSet: (_ch, v) => `VOLT:PROT ${v.toFixed(4)}`,
+    ocpSet: () => '*OPC?', // OCP alanı yok; zararsız no-op
+    out: (_ch, on) => `OUTP ${on ? 'ON' : 'OFF'}`,
+    all: (on) => `OUTP ${on ? 'ON' : 'OFF'}`,
+    errCmd: 'SYST:ERR?',
+    tripResetCmd: 'OUTP:PROT:CLE',
+    parse: numFirst
   }
 }
 
 function dl(dev: MockDevice): Dialect {
-  return DIALECTS[dev.config.kind as 'cpx400dp' | 'e36233a']
+  return DIALECTS[dev.config.kind as PsuKind]
 }
 
 const MOCK_PROBE: ProbeInfo = {
@@ -141,6 +160,11 @@ function createMock(config: DeviceConfig): MockDevice {
   const base = { config, state: 'disconnected' as ConnectionState, identity: null, trips: [], probe: null, pollTimer: null, pollCount: 0 }
   if (config.kind === 'smartlynq') {
     return { ...base, sim: null }
+  }
+  if (config.kind === 'n5745a') {
+    const sim = new N5745aSim()
+    sim.handle('CURR 5')
+    return { ...base, sim }
   }
   if (config.kind === 'e36233a') {
     const sim = new E36233aSim()
@@ -249,6 +273,10 @@ function pollTrips(dev: MockDevice): void {
 
 /** Kanal için trip bitlerini türe göre okur (CPX: LSR; Keysight: TRIP? sorguları). */
 function readLsrBits(dev: MockDevice, ch: number): number {
+  if (dev.config.kind === 'n5745a') {
+    const c = numFirst(ask(dev, 'STAT:QUES:COND?', 'poll'))
+    return (c & 1 ? LSR_OVP : 0) | (c & 2 ? LSR_OCP : 0)
+  }
   if (dev.config.kind === 'e36233a') {
     let bits = 0
     if (ask(dev, `VOLT:PROT:TRIP? (@${ch})`, 'poll') === '1') bits |= LSR_OVP

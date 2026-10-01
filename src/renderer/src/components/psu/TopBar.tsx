@@ -113,12 +113,17 @@ export function TopBar({
               {tr.panel.tracking}
             </button>
           )}
-          <button className="btn" onClick={() => void onAllOutputs(true)}>
-            {tr.panel.allOn}
-          </button>
-          <button className="btn" onClick={() => void onAllOutputs(false)}>
-            {tr.panel.allOff}
-          </button>
+          {/* Tek kanallı cihazda kanal kartındaki çıkış düğmesi yeterli */}
+          {typeInfo.channelCount > 1 && (
+            <>
+              <button className="btn" onClick={() => void onAllOutputs(true)}>
+                {tr.panel.allOn}
+              </button>
+              <button className="btn" onClick={() => void onAllOutputs(false)}>
+                {tr.panel.allOff}
+              </button>
+            </>
+          )}
         </>
       )}
 
