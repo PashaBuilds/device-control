@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { startCpx400dpSim, SimHandle } from '../tools/simulator/cpx400dp-sim'
 import { startSmartLynqSim } from '../tools/simulator/smartlynq-sim'
 import { startE36233aSim } from '../tools/simulator/e36233a-sim'
+import { startN5745aSim } from '../tools/simulator/n5745a-sim'
 import { DeviceManager, pollIntervalFor } from '../src/main/deviceManager'
 import type { DeviceSnapshot } from '../src/shared/types'
 
@@ -56,6 +57,31 @@ describe('DeviceManager (simülatöre karşı)', () => {
     await manager.connect(cfg.id)
     return cfg.id
   }
+
+  it('N5745A: bağlanır, tek kanallı snapshot üretir, trip algılar, LOCAL göndermez', async () => {
+    const rx: string[] = []
+    const n = await startN5745aSim(0, (msg) => {
+      if (msg.startsWith('rx: ')) rx.push(msg.slice(4))
+    })
+    try {
+      const cfg = await manager.addDevice({ name: 'N5745A', kind: 'n5745a', host: '127.0.0.1', port: n.port })
+      await manager.connect(cfg.id)
+      const s = await waitForSnapshot(manager, (x) => x.id === cfg.id && x.state === 'connected')
+      expect(s.identity).toMatch(/N5745A/)
+      expect(s.channels).toHaveLength(1)
+      await manager.setVoltage(cfg.id, 1, 12)
+      await manager.setCurrent(cfg.id, 1, 5)
+      await manager.setOutput(cfg.id, 1, true)
+      await waitForSnapshot(manager, (x) => x.id === cfg.id && Math.abs(x.channels[0].voltage - 12) < 0.01)
+      await expect(manager.setVoltage(cfg.id, 1, 35)).rejects.toThrow(/EER 222/)
+      n.sim.handle('SIM:TRIP OVP')
+      await waitForSnapshot(manager, (x) => x.id === cfg.id && x.trips.some((t) => t.kind === 'ovp'))
+      await manager.tripReset(cfg.id)
+      expect(rx.some((l) => /^(LOCAL|SYST:LOC|SYST:COMM:RLST)/i.test(l))).toBe(false)
+    } finally {
+      await n.close()
+    }
+  })
 
   describe('ön panel serbest bırakma (CPX400DP)', () => {
     /** Simülatörün LOCAL'e dönmesini bekler (kuyruk boşalınca kısa gecikmeyle yazılır). */
