@@ -89,7 +89,7 @@ taşınabilir exe `tools/build-portable.mjs` ile, electron-builder'ın indirdiğ
 derlenir).
 
 **Taşınabilir exe nasıl çalışır:** her sürümün ilk açılışında uygulama dosyaları
-`%LOCALAPPDATA%\CihazKontrolpp-<sürüm>-<özet>` klasörüne bir kez açılır (~7 sn,
+`%LOCALAPPDATA%\CihazKontrol\app-<sürüm>-<özet>` klasörüne bir kez açılır (~7 sn,
 "ilk kez hazırlanıyor" bildirimi görünür). Sonraki açılışlarda bu adım atlanır ve uygulama
 ~1 sn'de açılır. Yeni sürüm ilk açıldığında eski sürüm klasörleri silinir. Kullanıcı
 verileri (cihaz listesi vb.) her zamanki gibi `%APPDATA%\cihaz-kontrol` altındadır.
