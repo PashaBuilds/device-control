@@ -15,7 +15,7 @@ function createWindow(): BrowserWindow {
     minWidth: 980,
     minHeight: 640,
     show: false,
-    backgroundColor: '#0b0e14',
+    backgroundColor: '#0a0d12',
     autoHideMenuBar: true,
     title: 'Cihaz Kontrol',
     webPreferences: {
