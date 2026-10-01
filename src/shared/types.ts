@@ -1,4 +1,4 @@
-export type DeviceKind = 'cpx400dp' | 'e36233a' | 'smartlynq'
+export type DeviceKind = 'cpx400dp' | 'e36233a' | 'n5745a' | 'smartlynq'
 export type DeviceCategory = 'power-supply' | 'debug-probe'
 
 export interface DeviceTypeInfo {
@@ -59,6 +59,22 @@ export const DEVICE_TYPES: DeviceTypeInfo[] = [
     hasTracking: false,
     // E36200 serisinde OCP ayrı seviye değil; akım limitinde tetiklenir
     hasOcpLevel: false,
+    pollIntervalMs: 500
+  },
+  {
+    kind: 'n5745a',
+    category: 'power-supply',
+    label: 'Keysight N5745A',
+    channelCount: 1,
+    maxVoltage: 30,
+    maxCurrent: 25,
+    maxOvp: 36,
+    maxOcp: 0,
+    defaultPort: 5025,
+    hasTracking: false,
+    // N5700'de OCP ayrı seviye değil, aç/kapat; arayüzde gizli
+    hasOcpLevel: false,
+    // REMOTE modda ön panel açık kalır (kilit yalnızca RLST RWLock): canlı yokla
     pollIntervalMs: 500
   },
   {
