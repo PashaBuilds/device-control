@@ -44,6 +44,21 @@ export function findMakensis(cacheRoot) {
   return join(nsisDir, versions[versions.length - 1], 'Bin', 'makensis.exe')
 }
 
+/**
+ * makensis argümanları. Betik UTF-8 ve BOM'suz; NSIS bu durumda onu Windows kod
+ * sayfasıyla (ACP) okur ve Türkçe metinler bozulur ("hazÄ±rlanÄ±yor"), bu yüzden
+ * girdi kodlaması açıkça UTF-8 verilir.
+ */
+export function makensisArgs(defines, scriptPath) {
+  return [
+    '-V2',
+    '-INPUTCHARSET',
+    'UTF8',
+    ...Object.entries(defines).map(([k, v]) => `-D${k}=${v}`),
+    scriptPath
+  ]
+}
+
 function defaultCacheRoot() {
   if (process.env.ELECTRON_BUILDER_CACHE) return process.env.ELECTRON_BUILDER_CACHE
   return join(process.env.LOCALAPPDATA ?? '', 'electron-builder', 'Cache')
@@ -70,11 +85,7 @@ export function buildPortable({
     VERSION_QUAD: versionQuad(pkg.version),
     COPYRIGHT: '© 2026 Mert Cukur'
   }
-  const args = [
-    '-V2',
-    ...Object.entries(defines).map(([k, v]) => `-D${k}=${v}`),
-    join(root, 'build', 'portable', 'portable.nsi')
-  ]
+  const args = makensisArgs(defines, join(root, 'build', 'portable', 'portable.nsi'))
   execFileSync(findMakensis(cacheRoot), args, { stdio: 'inherit' })
   console.log(`Taşınabilir exe: ${outFile} (BUILD_ID ${buildId})`)
   return outFile

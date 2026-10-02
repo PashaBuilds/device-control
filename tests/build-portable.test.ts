@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { computeBuildId, findMakensis, versionQuad } from '../tools/build-portable.mjs'
+import { computeBuildId, findMakensis, makensisArgs, versionQuad } from '../tools/build-portable.mjs'
 
 describe('build-portable yardımcıları', () => {
   it('BUILD_ID sürüm + içerik özetinden belirlenir', () => {
@@ -28,5 +28,16 @@ describe('build-portable yardımcıları', () => {
 
   it('makensis yoksa anlaşılır hata verir', () => {
     expect(() => findMakensis(mkdtempSync(join(tmpdir(), 'ebcache-')))).toThrow(/makensis/)
+  })
+
+  it('betik UTF-8 okunur: Türkçe metinler (ı, …) bozulmasın', () => {
+    const args = makensisArgs({ BUILD_ID: 'x', COPYRIGHT: '© 2026' }, 'build/portable/portable.nsi')
+    const i = args.indexOf('-INPUTCHARSET')
+    expect(i).toBeGreaterThanOrEqual(0)
+    expect(args[i + 1]).toBe('UTF8')
+    expect(i).toBeLessThan(args.indexOf('build/portable/portable.nsi'))
+    expect(args).toContain('-DBUILD_ID=x')
+    expect(args).toContain('-DCOPYRIGHT=© 2026')
+    expect(args[args.length - 1]).toBe('build/portable/portable.nsi')
   })
 })
