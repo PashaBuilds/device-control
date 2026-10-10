@@ -69,6 +69,22 @@ async function addDevice(page: Page, name: string, port: number, kind = 'cpx400d
   await waitForText(page, name)
 }
 
+/** USB (sahte HID) cihazı ekler: tür seç, taramayı bekle, seri numarasını seç. */
+async function addUsbDevice(page: Page, name: string, kind: string, serial: string): Promise<void> {
+  const addBtn = await page.waitForSelector('.add-device')
+  await addBtn!.click()
+  await page.waitForSelector('.dialog')
+  await page.select('#dev-type', kind)
+  await page.type('#dev-name', name)
+  await page.waitForSelector('.usb-status .ok-text', { timeout: 10000 })
+  await page.select('#dev-usb', serial)
+  await shot(page, '09a-usb-cihaz-ekle')
+  await page.evaluate(() =>
+    document.querySelector<HTMLButtonElement>('.dialog-foot .btn.primary')?.click()
+  )
+  await waitForText(page, name)
+}
+
 async function main(): Promise<void> {
   mkdirSync(SHOTS, { recursive: true })
   const dataDir = mkdtempSync(join(tmpdir(), 'dc-e2e-'))
@@ -80,8 +96,11 @@ async function main(): Promise<void> {
   sim1.sim.channels[0].loadOhms = 5 // 10V/5Ω = 2A
   keysight.sim.channels[0].loadOhms = 10 // 12V/10Ω = 1.2A
 
-  const app: ChildProcess = spawn(electronBin as unknown as string, [ROOT, `--remote-debugging-port=${DEBUG_PORT}`], {
-    env: { ...process.env, DC_DATA_DIR: dataDir },
+  // Konteyner/CI'da root olarak koşarken Chromium sandbox'ı açılamaz
+  const extraArgs = process.getuid?.() === 0 ? ['--no-sandbox'] : []
+  const app: ChildProcess = spawn(electronBin as unknown as string, [ROOT, `--remote-debugging-port=${DEBUG_PORT}`, ...extraArgs], {
+    // DC_FAKE_HID: USB sinyal üreteçleri yerine simülatör (SSG-6000RC + SSG-15G-RC)
+    env: { ...process.env, DC_DATA_DIR: dataDir, DC_FAKE_HID: '1' },
     stdio: 'pipe'
   })
   app.stderr?.on('data', (d) => process.env.E2E_VERBOSE && console.error(`[app] ${d}`))
@@ -262,6 +281,43 @@ async function main(): Promise<void> {
     ok('Tek kanal arayüzü doğru: 1 kart, Tümünü Aç yok, OCP yok, tracking yok')
     await shot(page, '08-n5745a')
 
+    // Mini-Circuits SSG-6000RC (USB/HID, sahte arka uç): ekle + bağlan + frekans/güç/RF
+    await addUsbDevice(page, 'SSG Sinyal', 'ssg6000rc', '11401230001')
+    ok('SSG-6000RC eklendi (USB taramasında seri no ile seçildi)')
+    const sgConnect = await page.waitForSelector('.topbar .btn.primary')
+    await sgConnect!.click()
+    await waitForText(page, 'SSG-6000RC · SN 11401230001', 15000)
+    ok('SSG-6000RC USB üzerinden bağlandı, kimlik doğrulandı')
+    // Frekansı arayüzden yaz (MHz alanı + Enter), gücü API'den ver, RF'yi düğmeyle aç
+    const freqInput = await page.waitForSelector('.rf-card .sp-control input')
+    await freqInput!.click({ count: 3 })
+    await page.keyboard.type('2412.5')
+    await page.keyboard.press('Enter')
+    await page.evaluate(async () => {
+      const api = (window as unknown as { deviceApi: import('../../src/shared/ipc').DeviceApi })
+        .deviceApi
+      const d = (await api.listDevices()).find((x) => x.kind === 'ssg6000rc')!
+      await api.setPower(d.id, -7.5)
+    })
+    await page.evaluate(() => document.querySelector<HTMLButtonElement>('.rf-card .output-toggle')?.click())
+    await waitForText(page, 'RF AÇIK', 8000)
+    await waitForText(page, '2.412500', 8000)
+    await waitForText(page, '-7.50', 8000)
+    ok('Frekans 2.412500 GHz, güç -7.50 dBm, RF açık — cihazdan geri okundu')
+    const outOfRange = await page.evaluate(async () => {
+      const api = (window as unknown as { deviceApi: import('../../src/shared/ipc').DeviceApi })
+        .deviceApi
+      const d = (await api.listDevices()).find((x) => x.kind === 'ssg6000rc')!
+      return api.setFrequency(d.id, 7e9).then(
+        () => 'kabul edildi',
+        (e: Error) => e.message
+      )
+    })
+    if (!outOfRange.includes('25–6000 MHz')) fail(`Aralık dışı frekans reddedilmeliydi: ${outOfRange}`)
+    ok('Aralık dışı frekans (7 GHz) reddedildi')
+    await new Promise((r) => setTimeout(r, 600))
+    await shot(page, '09-sinyal-ureteci')
+
     // Diğer tema: tercih kalıcı, yeniden yüklemede uygulanır; bağlantılar ana süreçte sürer
     const before = await page.evaluate(() => document.documentElement.getAttribute('data-theme'))
     const other = before === 'light' ? 'dark' : 'light'
@@ -283,6 +339,12 @@ async function main(): Promise<void> {
     await waitForText(page, 'xc7z045', 10000)
     await new Promise((r) => setTimeout(r, 800))
     await shot(page, '10-diger-tema-jtag')
+    await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('.device-row')].find((r) => r.innerText.includes('SSG Sinyal'))?.click()
+    )
+    await waitForText(page, 'RF AÇIK', 10000)
+    await new Promise((r) => setTimeout(r, 800))
+    await shot(page, '11-diger-tema-sinyal')
     await page.evaluate((t) => localStorage.setItem('ui-theme', t ?? 'dark'), before)
 
     console.log('\nDuman testi BAŞARILI — görüntüler: ' + SHOTS)

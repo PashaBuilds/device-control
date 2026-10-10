@@ -10,6 +10,7 @@
 import { Cpx400dpSim } from '../../../../tools/simulator/model'
 import { E36233aSim } from '../../../../tools/simulator/e36233a-model'
 import { N5745aSim } from '../../../../tools/simulator/n5745a-model'
+import { SSG_15G_RC_SPEC, SSG_6000RC_SPEC, SsgSim } from '../../../../tools/simulator/ssg-model'
 import type {
   ChannelMeasurement,
   ChannelSetpoints,
@@ -17,8 +18,10 @@ import type {
   DeviceConfig,
   DeviceSnapshot,
   ProbeInfo,
+  RfState,
   ScpiLogEntry,
-  TripInfo
+  TripInfo,
+  UsbDeviceInfo
 } from '@shared/types'
 import { deviceTypeInfo } from '@shared/types'
 
@@ -32,6 +35,8 @@ type PsuKind = 'cpx400dp' | 'e36233a' | 'n5745a'
 interface MockDevice {
   config: DeviceConfig
   sim: PsuSim | null
+  /** Sinyal üreteci türlerinde: takılı sahte USB cihazının modeli */
+  ssg: SsgSim | null
   state: ConnectionState
   identity: string | null
   trips: TripInfo[]
@@ -140,6 +145,12 @@ const MOCK_PROBE: ProbeInfo = {
 type SnapshotCb = (s: DeviceSnapshot) => void
 type LogCb = (e: ScpiLogEntry) => void
 
+/** Tarayıcı modunda "takılı" sahte USB sinyal üreteçleri (kayıtlar aynı örneği paylaşır). */
+const USB_SIMS: Record<'ssg6000rc' | 'ssg15grc', SsgSim> = {
+  ssg6000rc: new SsgSim(SSG_6000RC_SPEC),
+  ssg15grc: new SsgSim(SSG_15G_RC_SPEC)
+}
+
 const devices = new Map<string, MockDevice>()
 const snapshotCbs = new Set<SnapshotCb>()
 const logCbs = new Set<LogCb>()
@@ -157,7 +168,10 @@ function persist(): void {
 }
 
 function createMock(config: DeviceConfig): MockDevice {
-  const base = { config, state: 'disconnected' as ConnectionState, identity: null, trips: [], probe: null, pollTimer: null, pollCount: 0 }
+  const base = { config, ssg: null, state: 'disconnected' as ConnectionState, identity: null, trips: [], probe: null, pollTimer: null, pollCount: 0 }
+  if (config.kind === 'ssg6000rc' || config.kind === 'ssg15grc') {
+    return { ...base, sim: null, ssg: USB_SIMS[config.kind] }
+  }
   if (config.kind === 'smartlynq') {
     return { ...base, sim: null }
   }
@@ -182,8 +196,8 @@ function createMock(config: DeviceConfig): MockDevice {
 for (const cfg of loadConfigs()) devices.set(cfg.id, createMock(cfg))
 
 function ask(dev: MockDevice, cmd: string, source: 'user' | 'poll' = 'user'): string | null {
-  if (!dev.sim) return null
-  const resp = dev.sim.handle(cmd)
+  const resp = dev.ssg ? dev.ssg.handle(cmd) : dev.sim ? dev.sim.handle(cmd) : null
+  if (resp === null && !dev.sim) return null
   const ts = Date.now()
   for (const cb of logCbs) {
     cb({ deviceId: dev.config.id, dir: 'tx', line: cmd, source, timestamp: ts })
@@ -205,7 +219,31 @@ function readSetpoints(dev: MockDevice, ch: number): ChannelSetpoints {
   }
 }
 
+function readRf(dev: MockDevice): RfState {
+  const s = dev.ssg!
+  if (dev.state !== 'connected') return { frequencyHz: s.frequencyHz, powerDbm: s.powerDbm, outputOn: false }
+  ask(dev, ':FREQ?', 'poll')
+  ask(dev, ':PWR?', 'poll')
+  ask(dev, ':PWR:RF?', 'poll')
+  return { frequencyHz: s.frequencyHz, powerDbm: s.powerDbm, outputOn: s.rfOn }
+}
+
 function snapshot(dev: MockDevice): DeviceSnapshot {
+  if (dev.ssg) {
+    return {
+      id: dev.config.id,
+      state: dev.state,
+      identity: dev.identity,
+      error: null,
+      channels: [],
+      setpoints: [],
+      tracking: false,
+      trips: [],
+      probe: null,
+      rf: readRf(dev),
+      timestamp: Date.now()
+    }
+  }
   if (dev.config.kind === 'smartlynq') {
     return {
       id: dev.config.id,
@@ -217,6 +255,7 @@ function snapshot(dev: MockDevice): DeviceSnapshot {
       tracking: false,
       trips: [],
       probe: dev.probe,
+      rf: null,
       timestamp: Date.now()
     }
   }
@@ -247,6 +286,7 @@ function snapshot(dev: MockDevice): DeviceSnapshot {
     tracking: info.hasTracking && ask(dev, 'CONFIG?', 'poll') === '0',
     trips: [...dev.trips],
     probe: null,
+    rf: null,
     timestamp: Date.now()
   }
 }
@@ -304,6 +344,21 @@ function requirePsu(id: string): MockDevice {
   return dev
 }
 
+function requireSsg(id: string, setting: boolean): MockDevice {
+  const dev = requireConnected(id)
+  if (!dev.ssg) throw new Error('Bu komut bu cihaz türünde desteklenmiyor')
+  if (setting && dev.config.locked) {
+    throw new Error('Ayar kilidi etkin — değerleri değiştirmek için kilidi açın')
+  }
+  return dev
+}
+
+function ssgSet(dev: MockDevice, cmd: string): void {
+  const reply = ask(dev, cmd) ?? ''
+  publish(dev)
+  if (/^0\b/.test(reply)) throw new Error(`Cihaz "${cmd}" komutunu reddetti: ${reply}`)
+}
+
 function requireUnlocked(id: string): MockDevice {
   const dev = requirePsu(id)
   if (dev.config.locked) {
@@ -355,6 +410,16 @@ const mockApi = {
         cb({ deviceId: dev.config.id, dir: 'tx', line: 'E Locator Hello ["Locator"]', source: 'user', timestamp: ts })
         cb({ deviceId: dev.config.id, dir: 'rx', line: 'E Locator Hello ' + JSON.stringify(MOCK_PROBE.services), source: 'user', timestamp: ts })
       }
+      publish(dev)
+      return
+    }
+    if (dev.ssg) {
+      dev.state = 'connected'
+      const sp = dev.ssg.spec
+      ask(dev, ':MN?')
+      ask(dev, ':SN?')
+      dev.identity = `Mini-Circuits ${sp.model} · SN ${sp.serial} · FW ${sp.firmware}`
+      dev.pollTimer = window.setInterval(() => publish(dev), 1000)
       publish(dev)
       return
     }
@@ -439,7 +504,32 @@ const mockApi = {
     }
     const resp = ask(dev, command)
     publish(dev)
-    return command.includes('?') ? resp : null
+    return command.includes('?') || dev.ssg ? resp : null
+  },
+  async setFrequency(id: string, hz: number): Promise<void> {
+    const dev = requireSsg(id, true)
+    ssgSet(dev, `:FREQ:${hz / 1e6}MHz`)
+  },
+  async setPower(id: string, dbm: number): Promise<void> {
+    const dev = requireSsg(id, true)
+    ssgSet(dev, `:PWR:${dbm}`)
+  },
+  async setRfOutput(id: string, on: boolean): Promise<void> {
+    const dev = requireSsg(id, false)
+    ssgSet(dev, on ? ':PWR:RF:ON' : ':PWR:RF:OFF')
+  },
+  async listUsbDevices(): Promise<UsbDeviceInfo[]> {
+    await new Promise((r) => setTimeout(r, 300))
+    const inUse = (kind: string): boolean =>
+      [...devices.values()].some((d) => d.config.kind === kind && d.state === 'connected')
+    return (['ssg6000rc', 'ssg15grc'] as const).map((kind, i) => ({
+      path: `mock-usb-${i + 1}`,
+      productId: 0x0022,
+      model: USB_SIMS[kind].spec.model,
+      serial: USB_SIMS[kind].spec.serial,
+      kind,
+      inUse: inUse(kind)
+    }))
   },
   onSnapshot(cb: SnapshotCb): () => void {
     snapshotCbs.add(cb)

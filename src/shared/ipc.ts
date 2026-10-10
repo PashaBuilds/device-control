@@ -1,4 +1,4 @@
-import type { DeviceConfig, DeviceSnapshot, ScpiLogEntry } from './types'
+import type { DeviceConfig, DeviceSnapshot, ScpiLogEntry, UsbDeviceInfo } from './types'
 
 /** Renderer'a preload üzerinden açılan köprünün tam sözleşmesi. */
 export interface DeviceApi {
@@ -19,6 +19,14 @@ export interface DeviceApi {
   /** Anında bir yoklama turu (10 s aralıklı türlerde son okumayı tazelemek için). */
   refresh(id: string): Promise<void>
   sendRaw(id: string, command: string): Promise<string | null>
+  /** Sinyal üreteci: frekans (Hz) */
+  setFrequency(id: string, hz: number): Promise<void>
+  /** Sinyal üreteci: çıkış gücü (dBm) */
+  setPower(id: string, dbm: number): Promise<void>
+  /** Sinyal üreteci: RF çıkışı aç/kapat */
+  setRfOutput(id: string, on: boolean): Promise<void>
+  /** Takılı Mini-Circuits USB cihazlarını model ve seri numarasıyla listeler. */
+  listUsbDevices(): Promise<UsbDeviceInfo[]>
   onSnapshot(cb: (s: DeviceSnapshot) => void): () => void
   onLog(cb: (e: ScpiLogEntry) => void): () => void
 }
@@ -40,7 +48,11 @@ export const IPC_INVOKE_METHODS = [
   'setTracking',
   'tripReset',
   'refresh',
-  'sendRaw'
+  'sendRaw',
+  'setFrequency',
+  'setPower',
+  'setRfOutput',
+  'listUsbDevices'
 ] as const
 
 export type IpcInvokeMethod = (typeof IPC_INVOKE_METHODS)[number]

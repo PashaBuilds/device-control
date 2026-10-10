@@ -1,5 +1,11 @@
 import { useState } from 'react'
-import { DEVICE_TYPES, deviceTypeInfo, type ConnectionState, type DeviceCategory } from '@shared/types'
+import {
+  DEVICE_TYPES,
+  deviceAddress,
+  deviceTypeInfo,
+  type ConnectionState,
+  type DeviceCategory
+} from '@shared/types'
 import { tr } from '../i18n/tr'
 import { useAppStore } from '../state/store'
 import { AddDeviceDialog } from './AddDeviceDialog'
@@ -18,11 +24,12 @@ function ledClass(state: ConnectionState | undefined): string {
   }
 }
 
-const CATEGORY_ORDER: DeviceCategory[] = ['power-supply', 'debug-probe']
+const CATEGORY_ORDER: DeviceCategory[] = ['power-supply', 'signal-generator', 'debug-probe']
 
 export function Sidebar(): React.JSX.Element {
   const { devices, snapshots, selectedId, select, removeDevice, theme, toggleTheme } = useAppStore()
-  const [dialogOpen, setDialogOpen] = useState(false)
+  /** Açık iletişim kutusunun kategorisi (o kategorinin ilk türü seçili gelir) */
+  const [dialogCategory, setDialogCategory] = useState<DeviceCategory | null>(null)
 
   const byCategory = CATEGORY_ORDER.map((cat) => ({
     cat,
@@ -71,15 +78,13 @@ export function Sidebar(): React.JSX.Element {
                   key={d.id}
                   className={`device-row${selectedId === d.id ? ' selected' : ''}`}
                   onClick={() => select(d.id)}
-                  title={`${d.host}:${d.port}`}
+                  title={deviceAddress(d)}
                 >
                   <span className={ledClass(snap?.state)} />
                   <span className="info">
                     <span className="dev-name">{d.name}</span>
                     <div className="dev-model">{deviceTypeInfo(d.kind).label}</div>
-                    <div className="dev-addr">
-                      {d.host}:{d.port}
-                    </div>
+                    <div className="dev-addr">{deviceAddress(d)}</div>
                   </span>
                   <span
                     role="button"
@@ -96,7 +101,7 @@ export function Sidebar(): React.JSX.Element {
               )
             })}
 
-            <button className="add-device" onClick={() => setDialogOpen(true)}>
+            <button className="add-device" onClick={() => setDialogCategory(cat)}>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
               </svg>
@@ -138,7 +143,9 @@ export function Sidebar(): React.JSX.Element {
         </button>
       </div>
 
-      {dialogOpen && <AddDeviceDialog onClose={() => setDialogOpen(false)} />}
+      {dialogCategory && (
+        <AddDeviceDialog initialCategory={dialogCategory} onClose={() => setDialogCategory(null)} />
+      )}
     </aside>
   )
 }

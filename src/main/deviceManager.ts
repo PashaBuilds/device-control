@@ -8,7 +8,9 @@ import type {
   DeviceKind,
   DeviceSnapshot,
   ProbeInfo,
-  TripInfo
+  RfState,
+  TripInfo,
+  UsbDeviceInfo
 } from '@shared/types'
 import { deviceTypeInfo } from '@shared/types'
 import { ScpiConnection } from './scpi/connection'
@@ -16,6 +18,9 @@ import { TcfConnection } from './tcf/connection'
 import { createDriver } from './drivers/cpx400dp'
 import { SmartLynqDriver } from './drivers/smartlynq'
 import type { PsuDriver } from './drivers/types'
+import { SsgDriver } from './drivers/ssg'
+import { HidScpiConnection } from './hid/connection'
+import { createNodeHidBackend, discoverMclDevices, type HidBackend } from './hid/mcl'
 import { Store } from './store'
 
 const LSR_OVP = 0b0100
@@ -25,6 +30,8 @@ export interface DeviceManagerOptions {
   dataDir: string
   /** Ölçüm yoklama aralığı (ms). Verilirse tüm türler için cihaz türü değerini geçersiz kılar (testler için). */
   pollIntervalMs?: number
+  /** USB (HID) erişimi; verilmezse node-hid kullanılır (testlerde sahte arka uç). */
+  hidBackend?: HidBackend
 }
 
 /** Yoklama aralığı: geçersiz kılma verilmişse o, yoksa cihaz türünün değeri. */
@@ -40,6 +47,13 @@ interface ManagedDevice {
   pollDriver: PsuDriver | null
   tcf: TcfConnection | null
   probeDriver: SmartLynqDriver | null
+  /** Sinyal üreteci (USB/HID) bağlantısı ve sürücüleri */
+  hid: HidScpiConnection | null
+  sgDriver: SsgDriver | null
+  sgPollDriver: SsgDriver | null
+  /** Bağlı USB cihazının tanımı (listUsbDevices'ta "kullanımda" göstermek için) */
+  usbInfo: UsbDeviceInfo | null
+  rf: RfState | null
   state: ConnectionState
   identity: string | null
   error: string | null
@@ -74,11 +88,13 @@ export class DeviceManager extends EventEmitter {
   private readonly pollIntervalOverride: number | undefined
   private readonly devices = new Map<string, ManagedDevice>()
   private disposed = false
+  private hidBackendInstance: HidBackend | null
 
   constructor(opts: DeviceManagerOptions) {
     super()
     this.store = new Store(opts.dataDir)
     this.pollIntervalOverride = opts.pollIntervalMs
+    this.hidBackendInstance = opts.hidBackend ?? null
     for (const config of this.store.load()) {
       this.devices.set(config.id, this.createManaged(config))
     }
@@ -93,6 +109,11 @@ export class DeviceManager extends EventEmitter {
       pollDriver: null,
       tcf: null,
       probeDriver: null,
+      hid: null,
+      sgDriver: null,
+      sgPollDriver: null,
+      usbInfo: null,
+      rf: info.category === 'signal-generator' ? { frequencyHz: 0, powerDbm: 0, outputOn: false } : null,
       state: 'disconnected',
       identity: null,
       error: null,
@@ -120,9 +141,20 @@ export class DeviceManager extends EventEmitter {
     return deviceTypeInfo(dev.config.kind).category === 'debug-probe'
   }
 
+  private isSigGen(dev: ManagedDevice): boolean {
+    return deviceTypeInfo(dev.config.kind).category === 'signal-generator'
+  }
+
+  private get hidBackend(): HidBackend {
+    this.hidBackendInstance ??= createNodeHidBackend()
+    return this.hidBackendInstance
+  }
+
   private requireDriver(id: string): { dev: ManagedDevice; driver: PsuDriver } {
     const dev = this.get(id)
-    if (this.isProbe(dev)) throw new Error('Bu komut bu cihaz türünde desteklenmiyor')
+    if (deviceTypeInfo(dev.config.kind).category !== 'power-supply') {
+      throw new Error('Bu komut bu cihaz türünde desteklenmiyor')
+    }
     if (!dev.driver || !dev.conn?.connected) throw new Error('Cihaz bağlı değil')
     return { dev, driver: dev.driver }
   }
@@ -134,6 +166,17 @@ export class DeviceManager extends EventEmitter {
       throw new Error('Ayar kilidi etkin — değerleri değiştirmek için kilidi açın')
     }
     return res
+  }
+
+  /** Sinyal üreteci komutları için; `setting` true ise ayar kilidi de denetlenir. */
+  private requireSigGen(id: string, setting: boolean): { dev: ManagedDevice; driver: SsgDriver } {
+    const dev = this.get(id)
+    if (!this.isSigGen(dev)) throw new Error('Bu komut bu cihaz türünde desteklenmiyor')
+    if (!dev.sgDriver || !dev.hid?.connected) throw new Error('Cihaz bağlı değil')
+    if (setting && dev.config.locked) {
+      throw new Error('Ayar kilidi etkin — değerleri değiştirmek için kilidi açın')
+    }
+    return { dev, driver: dev.sgDriver }
   }
 
   private persist(): void {
@@ -157,6 +200,7 @@ export class DeviceManager extends EventEmitter {
             jtagTargets: dev.probe.jtagTargets.map((t) => ({ ...t }))
           }
         : null,
+      rf: dev.rf ? { ...dev.rf } : null,
       timestamp: Date.now()
     }
   }
@@ -187,7 +231,10 @@ export class DeviceManager extends EventEmitter {
 
   async updateDevice(cfg: DeviceConfig): Promise<void> {
     const dev = this.get(cfg.id)
-    const addressChanged = dev.config.host !== cfg.host || dev.config.port !== cfg.port
+    const addressChanged =
+      dev.config.host !== cfg.host ||
+      dev.config.port !== cfg.port ||
+      (dev.config.usbSerial ?? '') !== (cfg.usbSerial ?? '')
     dev.config = { ...cfg }
     this.persist()
     if (addressChanged && dev.state !== 'disconnected') {
@@ -214,6 +261,7 @@ export class DeviceManager extends EventEmitter {
 
   private async establish(dev: ManagedDevice, phase: 'connecting' | 'reconnecting'): Promise<void> {
     if (this.isProbe(dev)) return this.establishProbe(dev, phase)
+    if (this.isSigGen(dev)) return this.establishSigGen(dev, phase)
     if (dev.conn) {
       dev.conn.removeAllListeners()
       dev.conn.disconnect()
@@ -352,6 +400,116 @@ export class DeviceManager extends EventEmitter {
     this.startPolling(dev)
   }
 
+  /** Sinyal üreteci (Mini-Circuits USB/HID) bağlantı akışı. */
+  private async establishSigGen(dev: ManagedDevice, phase: 'connecting' | 'reconnecting'): Promise<void> {
+    this.closeHid(dev)
+    dev.state = phase
+    dev.error = null
+    this.publish(dev)
+
+    const fail = (message: string, err: unknown): never => {
+      dev.error = message
+      if (phase === 'reconnecting') {
+        this.scheduleReconnect(dev)
+      } else {
+        dev.state = 'error'
+        this.publish(dev)
+      }
+      throw err instanceof Error ? err : new Error(String(err))
+    }
+
+    const info = deviceTypeInfo(dev.config.kind)
+    const wanted = dev.config.usbSerial?.trim() ?? ''
+    let target: UsbDeviceInfo | undefined
+    try {
+      const found = await discoverMclDevices(this.hidBackend, this.usbInUse(dev))
+      target = found.find(
+        (d) => !d.inUse && d.kind === dev.config.kind && (!wanted || d.serial === wanted)
+      )
+    } catch (err) {
+      return fail(`USB cihazları taranamadı: ${(err as Error).message}`, err)
+    }
+    if (!target) {
+      const what = wanted ? `${info.label} (SN ${wanted})` : info.label
+      const msg = `USB'de ${what} bulunamadı — kablo takılı ve cihaz açık mı?`
+      return fail(msg, new Error(msg))
+    }
+
+    const conn = new HidScpiConnection(this.hidBackend, target.path)
+    try {
+      await conn.connect()
+    } catch (err) {
+      return fail(`USB cihazı açılamadı: ${(err as Error).message}`, err)
+    }
+    dev.hid = conn
+    dev.usbInfo = target
+    dev.sgDriver = new SsgDriver(conn)
+    dev.sgPollDriver = new SsgDriver(conn, 'poll')
+    conn.on('log', (e: { dir: 'tx' | 'rx'; line: string; source: 'user' | 'poll' }) =>
+      this.emit('log', {
+        deviceId: dev.config.id,
+        dir: e.dir,
+        line: e.line,
+        source: e.source,
+        timestamp: Date.now()
+      })
+    )
+    conn.on('close', () => {
+      if (dev.userDisconnected || this.disposed) return
+      this.stopPolling(dev)
+      this.closeHid(dev)
+      dev.error = 'USB bağlantısı koptu'
+      this.scheduleReconnect(dev)
+    })
+
+    try {
+      dev.identity = (await dev.sgDriver.identify()).identity
+      this.mergeRf(dev, await dev.sgDriver.readState())
+    } catch (err) {
+      this.closeHid(dev)
+      dev.error = `Cihaz yanıt vermiyor: ${(err as Error).message}`
+      dev.state = 'error'
+      this.publish(dev)
+      throw err instanceof Error ? err : new Error(String(err))
+    }
+
+    dev.state = 'connected'
+    dev.error = null
+    dev.reconnectDelayMs = 1000
+    this.publish(dev)
+    this.startPolling(dev)
+  }
+
+  private closeHid(dev: ManagedDevice): void {
+    if (dev.hid) {
+      dev.hid.removeAllListeners()
+      dev.hid.disconnect()
+    }
+    dev.hid = null
+    dev.sgDriver = null
+    dev.sgPollDriver = null
+    dev.usbInfo = null
+  }
+
+  /** Diğer cihazların açık tuttuğu USB yolları (taramada açılmasınlar). */
+  private usbInUse(except?: ManagedDevice): Map<string, UsbDeviceInfo> {
+    const map = new Map<string, UsbDeviceInfo>()
+    for (const d of this.devices.values()) {
+      if (d !== except && d.hid && d.usbInfo) map.set(d.usbInfo.path, d.usbInfo)
+    }
+    return map
+  }
+
+  /** Okunan durumu uygular; okunamayan (null) alanlarda son bilinen değer kalır. */
+  private mergeRf(dev: ManagedDevice, s: { [K in keyof RfState]: RfState[K] | null }): void {
+    const cur = dev.rf ?? { frequencyHz: 0, powerDbm: 0, outputOn: false }
+    dev.rf = {
+      frequencyHz: s.frequencyHz ?? cur.frequencyHz,
+      powerDbm: s.powerDbm ?? cur.powerDbm,
+      outputOn: s.outputOn ?? cur.outputOn
+    }
+  }
+
   private scheduleReconnect(dev: ManagedDevice): void {
     if (this.disposed || dev.userDisconnected) return
     dev.state = 'reconnecting'
@@ -384,6 +542,7 @@ export class DeviceManager extends EventEmitter {
       dev.tcf = null
       dev.probeDriver = null
     }
+    this.closeHid(dev)
     dev.state = 'disconnected'
     dev.channels = dev.channels.map(() => emptyChannel())
     dev.error = null
@@ -411,6 +570,7 @@ export class DeviceManager extends EventEmitter {
 
   private async poll(dev: ManagedDevice): Promise<void> {
     if (this.isProbe(dev)) return this.pollProbe(dev)
+    if (this.isSigGen(dev)) return this.pollSigGen(dev)
     if (dev.pollBusy || !dev.pollDriver || !dev.conn?.connected) return
     dev.pollBusy = true
     try {
@@ -457,6 +617,26 @@ export class DeviceManager extends EventEmitter {
           dev.error = 'Cihaz yanıt vermiyor'
           this.scheduleReconnect(dev)
         }
+      }
+    } finally {
+      dev.pollBusy = false
+    }
+  }
+
+  /** Sinyal üreteci: durum okuması (ön paneli yok; değişikliği yalnız bu uygulama yapar). */
+  private async pollSigGen(dev: ManagedDevice): Promise<void> {
+    if (dev.pollBusy || !dev.sgPollDriver || !dev.hid?.connected) return
+    dev.pollBusy = true
+    try {
+      this.mergeRf(dev, await dev.sgPollDriver.readState())
+      dev.pollCount++
+      this.publish(dev)
+    } catch {
+      if (dev.hid && dev.hid.consecutiveTimeouts >= 3 && !dev.userDisconnected) {
+        this.stopPolling(dev)
+        this.closeHid(dev)
+        dev.error = 'Cihaz yanıt vermiyor'
+        this.scheduleReconnect(dev)
       }
     } finally {
       dev.pollBusy = false
@@ -578,8 +758,65 @@ export class DeviceManager extends EventEmitter {
     this.publish(dev)
   }
 
+  async setFrequency(id: string, hz: number): Promise<void> {
+    const { dev, driver } = this.requireSigGen(id, true)
+    const rf = deviceTypeInfo(dev.config.kind).rf!
+    if (!(hz >= rf.minFreqHz && hz <= rf.maxFreqHz)) {
+      throw new Error(`Frekans ${rf.minFreqHz / 1e6}–${rf.maxFreqHz / 1e6} MHz aralığında olmalı`)
+    }
+    try {
+      await driver.setFrequency(hz)
+    } finally {
+      await this.refreshRf(dev)
+    }
+  }
+
+  async setPower(id: string, dbm: number): Promise<void> {
+    const { dev, driver } = this.requireSigGen(id, true)
+    const rf = deviceTypeInfo(dev.config.kind).rf!
+    if (!(dbm >= rf.minPowerDbm && dbm <= rf.maxPowerDbm)) {
+      throw new Error(`Güç ${rf.minPowerDbm}–${rf.maxPowerDbm} dBm aralığında olmalı`)
+    }
+    try {
+      await driver.setPower(dbm)
+    } finally {
+      await this.refreshRf(dev)
+    }
+  }
+
+  async setRfOutput(id: string, on: boolean): Promise<void> {
+    const { dev, driver } = this.requireSigGen(id, false)
+    try {
+      await driver.setRfOutput(on)
+    } finally {
+      await this.refreshRf(dev)
+    }
+  }
+
+  /** Set sonrası cihazdan geri okuyup yayınlar (okuma hatası set hatasını gölgelemesin). */
+  private async refreshRf(dev: ManagedDevice): Promise<void> {
+    if (!dev.sgDriver) return
+    try {
+      this.mergeRf(dev, await dev.sgDriver.readState())
+    } catch {
+      // bir sonraki yoklamada tazelenir
+    }
+    this.publish(dev)
+  }
+
+  async listUsbDevices(): Promise<UsbDeviceInfo[]> {
+    return discoverMclDevices(this.hidBackend, this.usbInUse())
+  }
+
   async sendRaw(id: string, command: string): Promise<string | null> {
     const dev = this.get(id)
+    if (this.isSigGen(dev)) {
+      if (!dev.hid?.connected) throw new Error('Cihaz bağlı değil')
+      const reply = await dev.hid.query(command.trim())
+      // Elle gönderilen set komutu durumu değiştirmiş olabilir
+      if (!command.includes('?')) await this.refreshRf(dev)
+      return reply
+    }
     if (this.isProbe(dev)) {
       if (!dev.tcf?.connected) throw new Error('Cihaz bağlı değil')
       const m = command.trim().match(/^(\S+)\s+(\S+)(?:\s+([\s\S]+))?$/)
@@ -611,6 +848,7 @@ export class DeviceManager extends EventEmitter {
       dev.tcf?.disconnect()
       dev.tcf = null
       dev.probeDriver = null
+      this.closeHid(dev)
     }
   }
 }

@@ -1492,6 +1492,52 @@ button {
   border-color: var(--line-focus);
 }
 
+/* ------------------------- Sinyal üreteci paneli ----------------------- */
+
+.channels:has(.rf-card) {
+  grid-template-columns: minmax(420px, 760px);
+}
+.rf-card .readouts {
+  grid-template-columns: 1.35fr 1fr;
+}
+.rf-card .ro-label .mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.rf-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 16px 14px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+/* Cihaz ekle: USB cihaz seçimi */
+.usb-pick {
+  display: flex;
+  gap: 8px;
+}
+.usb-pick select {
+  flex: 1;
+  min-width: 0;
+}
+.usb-status {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  min-height: 16px;
+}
+.usb-status .ok-text {
+  color: var(--ok);
+}
+.usb-status .warn-text {
+  color: var(--warn);
+}
+
 /* =======================================================================
    AÇIK TEMA
    ======================================================================= */

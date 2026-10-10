@@ -1,11 +1,12 @@
 /** Tüm arayüz metinleri. İleride i18n gerekirse tek değişim noktası burasıdır. */
 export const tr = {
   appName: 'Cihaz Kontrol',
-  appSubtitle: 'TCP/IP Enstrüman Paneli',
+  appSubtitle: 'Ağ ve USB Enstrüman Paneli',
 
   categories: {
     'power-supply': 'Güç Kaynakları',
-    'debug-probe': 'Debug Probları'
+    'debug-probe': 'Debug Probları',
+    'signal-generator': 'Sinyal Üreteçleri'
   },
 
   theme: {
@@ -32,7 +33,7 @@ export const tr = {
 
   empty: {
     title: 'Cihaz yok',
-    body: 'Başlamak için ağdaki bir cihazı ekleyin. Cihazlar IP adresi ve port ile tanımlanır; kayıtlar bu bilgisayarda saklanır.',
+    body: 'Başlamak için bir cihaz ekleyin. Ağ cihazları IP adresi ve port ile, USB cihazları (sinyal üreteçleri) takılı olanlar arasından seçilerek tanımlanır; kayıtlar bu bilgisayarda saklanır.',
     action: 'İlk cihazı ekle'
   },
 
@@ -41,6 +42,20 @@ export const tr = {
     type: 'Cihaz türü',
     name: 'Ad',
     namePlaceholder: 'ör. Masa 1 — Güç Kaynağı',
+    namePlaceholderSigGen: 'ör. Masa 1 — Sinyal Üreteci',
+    usbDevice: 'USB cihazı',
+    usbFirst: (label: string) => `İlk bulunan ${label}`,
+    usbOption: (model: string, serial: string, inUse: boolean) =>
+      `${model} · SN ${serial || '—'}${inUse ? ' (bu uygulamada bağlı)' : ''}`,
+    usbScan: 'Yeniden tara',
+    usbScanning: 'USB cihazları taranıyor…',
+    usbNoneOfKind: (label: string) =>
+      `Takılı ${label} bulunamadı. Kaydı yine de ekleyebilirsiniz; Bağlan'a basınca cihaz yeniden aranır.`,
+    usbFoundCount: (n: number) => `${n} cihaz bulundu`,
+    usbUnrecognized: (pid: string) =>
+      `Bir Mini-Circuits USB cihazı görünüyor (PID ${pid}) ancak USB üzerinden SCPI komutlarına yanıt vermedi.`,
+    usbOtherModel: (model: string) => `Takılı başka model: ${model}`,
+    usbScanError: (msg: string) => `USB taranamadı: ${msg}`,
     host: 'IP adresi / sunucu adı',
     hostPlaceholder: '192.168.1.50',
     port: 'Port',
@@ -89,6 +104,19 @@ export const tr = {
       other: (ch: number) => `Kanal ${ch}: Koruma tetiklendi`,
       reset: 'Korumayı Sıfırla'
     }
+  },
+
+  sigGen: {
+    rfOutput: 'RF Çıkışı',
+    rfOn: 'RF AÇIK',
+    rfOff: 'RF KAPALI',
+    frequency: 'Frekans',
+    power: 'Güç',
+    readback: 'Cihazdaki değer',
+    range: (minMHz: number, maxMHz: number, minDbm: number, maxDbm: number, stepDb: number) =>
+      `Aralık: ${minMHz}–${maxMHz} MHz · ${minDbm}…+${maxDbm} dBm (${String(stepDb).replace('.', ',')} dB adım)`,
+    hint: 'Değeri yazıp Enter’a basın; ↑↓ tuşları frekansı 1 MHz, gücü bir adım değiştirir.',
+    consolePlaceholder: 'Komut girin — ör. :FREQ?  :PWR:-10  :PWR:RF:ON  (Enter: gönder, ↑↓: geçmiş)'
   },
 
   probe: {
