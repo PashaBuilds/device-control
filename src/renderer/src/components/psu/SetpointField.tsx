@@ -3,25 +3,38 @@ import { tr } from '../../i18n/tr'
 
 interface Props {
   label: string
-  unit: 'V' | 'A'
+  unit: string
   /** Cihazdan okunan doğrulanmış değer */
   value: number
   min: number
   max: number
   step: number
   disabled?: boolean
+  /** Gösterilen en çok ondalık basamak (varsayılan 3) */
+  decimals?: number
   onApply: (value: number) => Promise<void>
 }
 
-function fmt(v: number): string {
-  return v.toFixed(3).replace(/0+$/, '').replace(/\.$/, '.0')
+function fmtNum(v: number, decimals = 3): string {
+  return v.toFixed(decimals).replace(/0+$/, '').replace(/\.$/, '.0')
 }
 
 /**
  * Setpoint girişi: yazarak (Enter/blur ile uygula) veya adım düğmeleriyle.
  * Girilen değer cihazdakinden farklıyken amber "bekleyen değişiklik" vurgusu alır.
  */
-export function SetpointField({ label, unit, value, min, max, step, disabled, onApply }: Props): React.JSX.Element {
+export function SetpointField({
+  label,
+  unit,
+  value,
+  min,
+  max,
+  step,
+  disabled,
+  decimals = 3,
+  onApply
+}: Props): React.JSX.Element {
+  const fmt = (v: number): string => fmtNum(v, decimals)
   const [text, setText] = useState(fmt(value))
   const [error, setError] = useState<string | null>(null)
   const [focused, setFocused] = useState(false)
@@ -60,7 +73,7 @@ export function SetpointField({ label, unit, value, min, max, step, disabled, on
 
   const nudge = async (dir: 1 | -1): Promise<void> => {
     const base = parse(text) ?? value
-    const next = Math.min(max, Math.max(min, Number((base + dir * step).toFixed(3))))
+    const next = Math.min(max, Math.max(min, Number((base + dir * step).toFixed(decimals))))
     setText(fmt(next))
     await apply(String(next))
   }

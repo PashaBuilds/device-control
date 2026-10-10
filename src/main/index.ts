@@ -41,9 +41,13 @@ function createWindow(): BrowserWindow {
   return win
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // DC_FAKE_HID=1: USB cihazları yerine simülatör (donanımsız arayüz denemesi / e2e)
+  const hidBackend = process.env.DC_FAKE_HID
+    ? (await import('../../tools/simulator/ssg-hid')).createDemoFakeHidBackend()
+    : undefined
   // DC_DATA_DIR: test/otomasyon için veri dizini override'ı
-  manager = new DeviceManager({ dataDir: process.env.DC_DATA_DIR || app.getPath('userData') })
+  manager = new DeviceManager({ dataDir: process.env.DC_DATA_DIR || app.getPath('userData'), hidBackend })
   registerIpcHandlers(manager)
   createWindow()
 

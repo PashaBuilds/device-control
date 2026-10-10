@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ConnectionState, DeviceConfig, DeviceSnapshot } from '@shared/types'
-import { deviceTypeInfo } from '@shared/types'
+import { deviceAddress, deviceTypeInfo } from '@shared/types'
 import { tr } from '../../i18n/tr'
 
 interface Props {
@@ -66,7 +66,7 @@ export function TopBar({
           <h1>{device.name}</h1>
           <span className="model-chip">{deviceTypeInfo(device.kind).label}</span>
         </div>
-        <div className="idn">{connected && snapshot?.identity ? snapshot.identity : `${device.host}:${device.port}`}</div>
+        <div className="idn">{connected && snapshot?.identity ? snapshot.identity : deviceAddress(device)}</div>
       </div>
 
       <button

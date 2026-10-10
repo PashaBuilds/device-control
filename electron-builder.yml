@@ -14,6 +14,13 @@ files:
   - out/**
   - package.json
 
+# node-hid (USB sinyal üreteçleri) N-API hazır ikilileriyle gelir: Electron sürümünden
+# bağımsızdır, yeniden derleme (node-gyp + Visual Studio araçları) gerekmez
+npmRebuild: false
+# Yerel modül asar dışına açılır (.node dosyası doğrudan yüklenir)
+asarUnpack:
+  - node_modules/node-hid/**
+
 win:
   icon: build/icon.png
   target:

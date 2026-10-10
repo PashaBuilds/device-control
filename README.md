@@ -1,16 +1,18 @@
 # Cihaz Kontrol
 
-TCP/IP ağı üzerinden laboratuvar/saha cihazlarını kontrol eden masaüstü uygulaması.
+TCP/IP ağı ve USB üzerinden laboratuvar/saha cihazlarını kontrol eden masaüstü uygulaması.
 
 Desteklenen cihazlar:
 - **Aim-TTi CPX400DP** çift kanallı güç kaynağı (2×60V/20A, 420W) — SCPI, TCP 9221
 - **Keysight E36233A** çift kanallı güç kaynağı (2×30V/10A) — SCPI (E36200), TCP 5025
 - **Keysight N5745A** tek çıkışlı sistem güç kaynağı (30V/25A, 750W) — SCPI (N5700), TCP 5025
 - **Xilinx Hardware Server** (hw_server / SmartLynq DLC20-DLC30) — TCF, TCP 3121
+- **Mini-Circuits SSG-6000RC** sinyal üreteci (25–6000 MHz, −65…+14 dBm) — USB (HID), SCPI
+- **Mini-Circuits SSG-15G-RC** sinyal üreteci (10 MHz–15 GHz, −45…+10 dBm) — USB (HID), SCPI
 
 Mimari, yeni cihaz türlerinin *sürücü + panel* çifti eklenerek genişletilmesine göre
-tasarlandı; kenar çubuğundaki **Güç Kaynakları** ve **Debug Probları** kategorilerinin
-yanına yenileri eklenebilir.
+tasarlandı; kenar çubuğunda **Güç Kaynakları**, **Sinyal Üreteçleri** ve **Debug Probları**
+kategorileri vardır, yenileri eklenebilir.
 
 ## Özellikler
 
@@ -38,6 +40,9 @@ yanına yenileri eklenebilir.
 - **SCPI konsolu**: ham komut gönderme + tüm trafiğin zaman damgalı kaydı.
 - **Dayanıklılık**: bağlantı kopunca üstel geri çekilme ile otomatik yeniden bağlanma;
   set komutları cihaz tarafında `EER?` ile doğrulanır.
+- **Sinyal üreteci (USB)**: frekans (MHz) ve güç (dBm) ayarı, RF çıkışı aç/kapat; değerler
+  cihazdan geri okunur. Cihaz eklerken takılı USB cihazları taranır, seri numarasıyla
+  seçilir (ya da "ilk bulunan"). Kablo çekilince yeniden bağlanmaya geçer, takılınca döner.
 - **JTAG zinciri görselleştirme** (Hardware Server): zinciri TDI→cihaz→TDO şeması olarak,
   her hedefin IDCODE ve IR uzunluğuyla + canlı sağlık göstergesiyle gösterme.
 
@@ -64,6 +69,10 @@ npm run sim:e36233a  # Keysight E36233A (SCPI), 127.0.0.1:5025
 npm run sim:n5745a   # Keysight N5745A (SCPI), 127.0.0.1:5026
 npm run sim:lynq     # Xilinx Hardware Server (TCF), 127.0.0.1:3121
 ```
+
+USB sinyal üreteçleri için TCP simülatörü yerine sahte HID arka ucu vardır: uygulama
+`DC_FAKE_HID=1` ile başlatılırsa takılı bir SSG-6000RC ve bir SSG-15G-RC varmış gibi davranır
+(`DC_FAKE_HID=1 npm run dev`). E2E testi bunu kullanır.
 
 CPX400DP / E36233A test uzantıları: `SIM:LOAD1 8` (kanal 1 yükünü 8Ω yap),
 `SIM:TRIP1 OVP|OCP` (zorla trip). Hardware Server simülatörü Locator/Jtag servislerini
@@ -134,6 +143,28 @@ izleme modu yoktur; arayüz bu türde OCP alanını ve izleme anahtarını göst
    OCP ayrı seviye değil, aç/kapattır ve uygulamada gösterilmez — gerekirse ön paneldeki
    OCP tuşuyla açılır; trip olursa uygulamada uyarı bandı çıkar ve sıfırlanabilir.
 
+## Saha kullanımı (Mini-Circuits SSG-6000RC / SSG-15G-RC, USB)
+
+1. Cihazı USB kablosuyla bilgisayara takın. Mini-Circuits cihazları HID sınıfındadır;
+   **sürücü kurulumu gerekmez** (Windows "USB giriş aygıtı" olarak tanır).
+2. Uygulamada **Sinyal Üreteçleri → Cihaz Ekle** → türü seçin. Takılı cihazlar otomatik
+   taranır; listeden seri numarasını seçin (birden fazla aynı model varsa önemli) ya da
+   "İlk bulunan" bırakın.
+3. **Bağlan** → üst şeritte `Mini-Circuits SSG-… · SN …` kimliği görünmelidir.
+4. Frekansı MHz, gücü dBm olarak yazıp Enter'a basın; **RF KAPALI/AÇIK** düğmesi çıkışı
+   açar/kapatır. Ayar kilidi frekans/gücü korur, RF düğmesi çalışmaya devam eder.
+5. Cihaz Mini-Circuits'in kendi programı (ör. SSG GUI) tarafından açıkken aynı anda
+   kullanılmamalı; yanıtlar iki program arasında karışabilir.
+
+Protokol: 64 baytlık HID raporu, bayt 0 = 1 (SCPI komutu), ardından ASCII komut
+(`:MN?`, `:SN?`, `:FREQ:2412.5MHz`, `:FREQ?`, `:PWR:-7.5`, `:PWR?`, `:PWR:RF:ON|OFF`,
+`:PWR:RF?`). SCPI konsolundan ham komut gönderilebilir.
+
+**Tanılama:** Ekleme penceresi "Mini-Circuits USB cihazı görünüyor ancak SCPI'ye yanıt
+vermedi" derse cihaz USB'de görünüyor ama bu komut biçimini konuşmuyor demektir (eski
+ürün yazılımı olabilir). Cihaz hiç listelenmiyorsa kabloyu/gücü ve Aygıt Yöneticisi'ndeki
+"HID uyumlu aygıt" girdisini kontrol edin.
+
 ## Saha kullanımı (Xilinx Hardware Server)
 
 1. Hardware Server'ı (SmartLynq / hw_server) ağa bağlayın; IP'sini öğrenin (port **3121**).
@@ -151,12 +182,14 @@ zincir görünürlüğü). Asıl programlama/debug işlemleri Vivado/hw_server a
 src/main      Electron ana süreç:
               - scpi/  ScpiConnection (TCP 9221, komut kuyruğu)
               - tcf/   TcfConnection (TCP 3121, NUL/EOM çerçeveleme)
-              - drivers/  Cpx400dpDriver, E36233aDriver, SmartLynqDriver (Hardware Server)
+              - hid/   Mini-Circuits USB (HID) çerçeveleme, tarama, HidScpiConnection (node-hid)
+              - drivers/  Cpx400dpDriver, E36233aDriver, SmartLynqDriver (Hardware Server),
+                          SsgDriver (Mini-Circuits sinyal üreteci)
               - DeviceManager (yoklama, yeniden bağlanma, kalıcılık, kilit)
 src/preload   Tip güvenli IPC köprüsü (window.deviceApi)
-src/renderer  React arayüz (kenar çubuğu, PSU paneli, probe paneli, trend, konsol)
+src/renderer  React arayüz (kenar çubuğu, PSU paneli, sinyal üreteci paneli, probe paneli, trend, konsol)
 src/shared    Ortak tipler + IPC sözleşmesi
-tools/        CPX400DP + SmartLynq simülatörleri, E2E duman testi, ikon üretimi
+tools/        Cihaz simülatörleri (TCP + sahte USB/HID), E2E duman testi, ikon üretimi
 docs/         Tasarım (spec) ve implementasyon planı
 ```
 
