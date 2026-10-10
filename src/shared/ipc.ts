@@ -27,6 +27,8 @@ export interface DeviceApi {
   setRfOutput(id: string, on: boolean): Promise<void>
   /** Takılı Mini-Circuits USB cihazlarını model ve seri numarasıyla listeler. */
   listUsbDevices(): Promise<UsbDeviceInfo[]>
+  /** Sahada "cihaz bulunamadı" için metin rapor (HID kitaplığı, arayüzler, ham yanıtlar). */
+  usbDiagnostics(): Promise<string>
   onSnapshot(cb: (s: DeviceSnapshot) => void): () => void
   onLog(cb: (e: ScpiLogEntry) => void): () => void
 }
@@ -52,7 +54,8 @@ export const IPC_INVOKE_METHODS = [
   'setFrequency',
   'setPower',
   'setRfOutput',
-  'listUsbDevices'
+  'listUsbDevices',
+  'usbDiagnostics'
 ] as const
 
 export type IpcInvokeMethod = (typeof IPC_INVOKE_METHODS)[number]

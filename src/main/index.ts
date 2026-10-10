@@ -47,7 +47,11 @@ app.whenReady().then(async () => {
     ? (await import('../../tools/simulator/ssg-hid')).createDemoFakeHidBackend()
     : undefined
   // DC_DATA_DIR: test/otomasyon için veri dizini override'ı
-  manager = new DeviceManager({ dataDir: process.env.DC_DATA_DIR || app.getPath('userData'), hidBackend })
+  manager = new DeviceManager({
+    dataDir: process.env.DC_DATA_DIR || app.getPath('userData'),
+    hidBackend,
+    appVersion: app.getVersion()
+  })
   registerIpcHandlers(manager)
   createWindow()
 

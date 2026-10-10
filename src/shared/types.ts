@@ -261,6 +261,8 @@ export interface UsbDeviceInfo {
   kind: DeviceKind | null
   /** Bu uygulamada şu an bağlı bir cihaz tarafından kullanılıyor mu */
   inUse: boolean
+  /** Tanınamadıysa nedeni (açılamadı / zaman aşımı …) — tanılama için */
+  error?: string
 }
 
 export interface DeviceSnapshot {

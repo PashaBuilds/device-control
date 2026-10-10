@@ -1537,6 +1537,34 @@ button {
 .usb-status .warn-text {
   color: var(--warn);
 }
+.usb-diag-row {
+  display: flex;
+  gap: 6px;
+}
+.usb-diag-row .btn.tiny {
+  padding: 3px 9px;
+  font-size: 11.5px;
+}
+.usb-diag {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+}
+.usb-diag-hint {
+  font-size: 11px;
+  color: var(--text-3);
+}
 
 /* =======================================================================
    AÇIK TEMA

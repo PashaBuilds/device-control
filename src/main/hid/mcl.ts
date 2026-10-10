@@ -34,7 +34,27 @@ export function decodeScpiReport(data: Uint8Array): string | null {
   if (data.length === 0 || data[0] !== MCL_SCPI_CODE) return null
   let end = 1
   while (end < data.length && data[end] !== 0) end++
-  return Buffer.from(data.subarray(1, end)).toString('ascii').trim()
+  // latin1: baytlar birebir korunur (ikili yanıtı ayırt edip hex gösterebilmek için)
+  return Buffer.from(data.subarray(1, end)).toString('latin1').trim()
+}
+
+/** SCPI yanıtı yazdırılabilir ASCII metindir; değilse cihaz ikili (eski) protokol konuşuyor. */
+export function isTextReply(reply: string): boolean {
+  return /^[\x20-\x7e]*$/.test(reply)
+}
+
+/** Metin olarak çözülmüş yanıtın baytları (hex, ilk n bayt). */
+export function replyHex(reply: string, n = 16): string {
+  return [...Buffer.from(reply, 'latin1').subarray(0, n)].map((b) => b.toString(16).padStart(2, '0')).join(' ')
+}
+
+/** SCPI sorgusu; yanıt metin değilse (ikili protokollü cihaz) anlaşılır hata fırlatır. */
+async function scpiQueryText(handle: HidDeviceHandle, cmd: string, timeoutMs: number): Promise<string> {
+  const reply = await mclTransact(handle, cmd, timeoutMs)
+  if (!isTextReply(reply)) {
+    throw new Error(`SCPI yerine ikili yanıt (eski USB protokolü) [${replyHex(reply)}]`)
+  }
+  return reply
 }
 
 /**
@@ -70,17 +90,29 @@ export interface HidDeviceEntry {
   path: string
   vendorId: number
   productId: number
+  /** USB tanımlayıcı metinleri (tanılama raporu için) */
+  manufacturer?: string
+  product?: string
+  serialNumber?: string
+  usagePage?: number
+  usage?: number
+  interface?: number
 }
 
 /** İşletim sistemi HID erişimi. Testlerde ve DC_FAKE_HID ile sahte arka uç kullanılır. */
 export interface HidBackend {
+  /** Yalnızca Mini-Circuits (VID 0x20CE) arayüzleri */
   enumerate(): Promise<HidDeviceEntry[]>
+  /** Sistemdeki tüm HID arayüzleri (tanılama raporu için) */
+  enumerateAll(): Promise<HidDeviceEntry[]>
+  /** Kitaplık sürümü vb. (tanılama raporu için) */
+  describe(): Promise<string>
   open(path: string): Promise<HidDeviceHandle>
 }
 
 /** node-hid tabanlı gerçek arka uç. Yerel modül ilk kullanımda yüklenir. */
 export function createNodeHidBackend(): HidBackend {
-  type NodeHid = Pick<typeof import('node-hid'), 'devicesAsync' | 'HIDAsync'>
+  type NodeHid = Pick<typeof import('node-hid'), 'devicesAsync' | 'HIDAsync' | 'getHidapiVersion'>
   let mod: NodeHid | null = null
   const load = async (): Promise<NodeHid> => {
     if (!mod) {
@@ -94,13 +126,31 @@ export function createNodeHidBackend(): HidBackend {
     }
     return mod
   }
+  const enumerateAll = async (): Promise<HidDeviceEntry[]> => {
+    const hid = await load()
+    const list = await hid.devicesAsync()
+    return list
+      .filter((d) => typeof d.path === 'string')
+      .map((d) => ({
+        path: d.path!,
+        vendorId: d.vendorId,
+        productId: d.productId,
+        manufacturer: d.manufacturer,
+        product: d.product,
+        serialNumber: d.serialNumber,
+        usagePage: d.usagePage,
+        usage: d.usage,
+        interface: d.interface
+      }))
+  }
   return {
+    enumerateAll,
     async enumerate() {
-      const hid = await load()
-      const list = await hid.devicesAsync()
-      return list
-        .filter((d) => d.vendorId === MCL_VENDOR_ID && typeof d.path === 'string')
-        .map((d) => ({ path: d.path!, vendorId: d.vendorId, productId: d.productId }))
+      return (await enumerateAll()).filter((d) => d.vendorId === MCL_VENDOR_ID)
+    },
+    async describe() {
+      const hid = (await load()) as NodeHid & { getHidapiVersion?: () => string }
+      return `node-hid yüklü, hidapi ${hid.getHidapiVersion?.() ?? '?'}`
     },
     async open(path) {
       const hid = await load()
@@ -170,10 +220,13 @@ export async function discoverMclDevices(
       continue
     }
     let handle: HidDeviceHandle | null = null
+    let step = 'açılamadı'
     try {
       handle = await backend.open(entry.path)
-      const model = stripTag(await mclTransact(handle, ':MN?', timeoutMs), 'MN')
-      const serial = stripTag(await mclTransact(handle, ':SN?', timeoutMs), 'SN')
+      step = ':MN? yanıtsız'
+      const model = stripTag(await scpiQueryText(handle, ':MN?', timeoutMs), 'MN')
+      step = ':SN? yanıtsız'
+      const serial = stripTag(await scpiQueryText(handle, ':SN?', timeoutMs), 'SN')
       found.push({
         path: entry.path,
         productId: entry.productId,
@@ -182,10 +235,18 @@ export async function discoverMclDevices(
         kind: kindForModel(model),
         inUse: false
       })
-    } catch {
+    } catch (err) {
       // Açılamayan ya da USB üzerinden SCPI'ye yanıt vermeyen cihaz: tanınmadı olarak
       // listelenir ki sahada "cihaz görünüyor ama konuşmuyor" ayrımı yapılabilsin
-      found.push({ path: entry.path, productId: entry.productId, model: '', serial: '', kind: null, inUse: false })
+      found.push({
+        path: entry.path,
+        productId: entry.productId,
+        model: '',
+        serial: '',
+        kind: null,
+        inUse: false,
+        error: `${step}: ${(err as Error).message}`
+      })
     } finally {
       await handle?.close().catch(() => undefined)
     }
@@ -198,4 +259,120 @@ export async function discoverMclDevices(
     seen.add(key)
     return true
   })
+}
+
+// ---- Tanılama ----
+
+const hex4 = (n: number | undefined): string =>
+  n === undefined ? '?' : `0x${n.toString(16).padStart(4, '0').toUpperCase()}`
+
+function hexBytes(data: Uint8Array, n = 24): string {
+  return [...data.subarray(0, n)].map((b) => b.toString(16).padStart(2, '0')).join(' ')
+}
+
+function printable(data: Uint8Array): string {
+  return Buffer.from(data.subarray(1))
+    .toString('latin1')
+    .replace(/\0[\s\S]*$/, '')
+    .replace(/[^\x20-\x7e]/g, '.')
+}
+
+/** Ham bir rapor yazar, gelen ilk raporu (koduna bakmadan) döndürür; süre dolarsa null. */
+async function rawExchange(handle: HidDeviceHandle, body: number[], timeoutMs: number): Promise<Uint8Array | null> {
+  for (let i = 0; i < 8; i++) {
+    if (!(await handle.read(0))) break
+  }
+  const buf = Buffer.alloc(MCL_REPORT_SIZE + 1)
+  Buffer.from(body).copy(buf, 1)
+  await handle.write(buf)
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) return null
+    const data = await handle.read(Math.min(remaining, 250))
+    if (data) return data
+  }
+}
+
+/**
+ * Sahada "cihaz bulunamadı" durumunu ayırt etmek için metin rapor: HID kitaplığı,
+ * Mini-Circuits'e benzeyen tüm HID arayüzleri, her birinin açılıp açılmadığı ve
+ * `:MN?` / `:SN?` ile salt-okur model/seri kodlarına (40/41) verdiği ham yanıtlar.
+ */
+export async function diagnoseMcl(
+  backend: HidBackend,
+  inUse: Map<string, UsbDeviceInfo>,
+  timeoutMs = 1000
+): Promise<string> {
+  const out: string[] = []
+  try {
+    out.push(`HID kitaplığı: ${await backend.describe()}`)
+  } catch (err) {
+    out.push(`HID kitaplığı YÜKLENEMEDİ: ${(err as Error).message}`)
+    return out.join('\n')
+  }
+  let all: HidDeviceEntry[]
+  try {
+    all = await backend.enumerateAll()
+  } catch (err) {
+    out.push(`HID cihazları listelenemedi: ${(err as Error).message}`)
+    return out.join('\n')
+  }
+  const looksMcl = (d: HidDeviceEntry): boolean =>
+    d.vendorId === MCL_VENDOR_ID || /mini.?circuits|\bssg\b|ssg-/i.test(`${d.manufacturer ?? ''} ${d.product ?? ''}`)
+  const mcl = all.filter(looksMcl)
+  out.push(`Toplam HID arayüzü: ${all.length}; Mini-Circuits (VID 0x20CE ya da adı uyan): ${mcl.length}`)
+  if (mcl.length === 0) {
+    const vendors = [...new Set(all.map((d) => `${hex4(d.vendorId)} ${d.manufacturer ?? ''}`.trim()))]
+    out.push(`Görülen üreticiler: ${vendors.join(' | ') || '—'}`)
+    out.push('→ Cihaz USB HID olarak görünmüyor: kablo/güç, Aygıt Yöneticisi > İnsan Arabirim Aygıtları.')
+  }
+  for (const [i, d] of mcl.entries()) {
+    out.push('')
+    out.push(
+      `#${i + 1} VID ${hex4(d.vendorId)} PID ${hex4(d.productId)} · "${d.manufacturer ?? ''}" "${d.product ?? ''}" · ` +
+        `USB SN "${d.serialNumber ?? ''}" · usagePage ${hex4(d.usagePage)} usage ${hex4(d.usage)} · arayüz ${d.interface ?? '?'}`
+    )
+    out.push(`   yol: ${d.path}`)
+    const known = inUse.get(d.path)
+    if (known) {
+      out.push(`   bu uygulamada bağlı (${known.model} SN ${known.serial}) — test edilmedi`)
+      continue
+    }
+    let handle: HidDeviceHandle | null = null
+    try {
+      handle = await backend.open(d.path)
+      out.push('   açıldı ✓')
+    } catch (err) {
+      out.push(`   AÇILAMADI: ${(err as Error).message}`)
+      continue
+    }
+    try {
+      for (const cmd of [':MN?', ':SN?']) {
+        try {
+          const reply = await mclTransact(handle, cmd, timeoutMs)
+          out.push(
+            isTextReply(reply)
+              ? `   ${cmd} → "${reply}"`
+              : `   ${cmd} → İKİLİ yanıt (SCPI değil): [${replyHex(reply, 63)}]`
+          )
+        } catch (err) {
+          out.push(`   ${cmd} → ${(err as Error).message}`)
+        }
+      }
+      for (const code of [40, 41]) {
+        try {
+          const r = await rawExchange(handle, [code], timeoutMs)
+          out.push(
+            r ? `   kod ${code} → [${hexBytes(r)}] "${printable(r)}"` : `   kod ${code} → yanıt yok (${timeoutMs} ms)`
+          )
+        } catch (err) {
+          out.push(`   kod ${code} → HATA: ${(err as Error).message}`)
+        }
+      }
+    } finally {
+      await handle.close().catch(() => undefined)
+    }
+  }
+  return out.join('\n')
 }

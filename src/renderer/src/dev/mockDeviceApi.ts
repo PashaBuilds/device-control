@@ -518,6 +518,17 @@ const mockApi = {
     const dev = requireSsg(id, false)
     ssgSet(dev, on ? ':PWR:RF:ON' : ':PWR:RF:OFF')
   },
+  async usbDiagnostics(): Promise<string> {
+    return [
+      'Cihaz Kontrol (tarayıcı taklidi)',
+      'HID kitaplığı: taklit',
+      'Toplam HID arayüzü: 2; Mini-Circuits (VID 0x20CE ya da adı uyan): 2',
+      '',
+      '#1 VID 0x20CE PID 0x0022 · "Mini-Circuits" "SSG-6000RC"',
+      '   açıldı ✓',
+      '   :MN? → "MN=SSG-6000RC"'
+    ].join('\n')
+  },
   async listUsbDevices(): Promise<UsbDeviceInfo[]> {
     await new Promise((r) => setTimeout(r, 300))
     const inUse = (kind: string): boolean =>

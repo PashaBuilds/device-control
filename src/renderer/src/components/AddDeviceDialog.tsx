@@ -43,6 +43,9 @@ export function AddDeviceDialog({
   const [usbList, setUsbList] = useState<UsbDeviceInfo[] | null>(null)
   const [usbError, setUsbError] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
+  const [diag, setDiag] = useState<string | null>(null)
+  const [diagBusy, setDiagBusy] = useState(false)
+  const [diagCopied, setDiagCopied] = useState(false)
   const [errors, setErrors] = useState<{ name?: string; host?: string; port?: string }>({})
   const [busy, setBusy] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
@@ -66,6 +69,24 @@ export function AddDeviceDialog({
       setScanning(false)
     }
   }, [])
+
+  const runDiagnostics = useCallback(async () => {
+    setDiagBusy(true)
+    setDiagCopied(false)
+    try {
+      setDiag(await window.deviceApi.usbDiagnostics())
+    } catch (err) {
+      setDiag(tr.addDialog.usbScanError(err instanceof Error ? err.message : String(err)))
+    } finally {
+      setDiagBusy(false)
+    }
+  }, [])
+
+  const copyDiagnostics = async (): Promise<void> => {
+    if (!diag) return
+    await navigator.clipboard.writeText(diag)
+    setDiagCopied(true)
+  }
 
   // USB türü seçilince takılı cihazları tara (bir kez; "Yeniden tara" ile tekrar)
   useEffect(() => {
@@ -193,11 +214,33 @@ export function AddDeviceDialog({
                     {unrecognized.map((d) => (
                       <span key={d.path} className="warn-text">
                         {tr.addDialog.usbUnrecognized(hexPid(d.productId))}
+                        {d.error ? ` (${d.error})` : ''}
                       </span>
                     ))}
                   </>
                 ) : null}
               </div>
+              <div className="usb-diag-row">
+                <button
+                  type="button"
+                  className="btn ghost tiny"
+                  onClick={() => void runDiagnostics()}
+                  disabled={diagBusy}
+                >
+                  {diagBusy ? tr.addDialog.usbDiagRunning : tr.addDialog.usbDiag}
+                </button>
+                {diag && (
+                  <button type="button" className="btn ghost tiny" onClick={() => void copyDiagnostics()}>
+                    {diagCopied ? tr.addDialog.usbDiagCopied : tr.addDialog.usbDiagCopy}
+                  </button>
+                )}
+              </div>
+              {diag && (
+                <>
+                  <pre className="usb-diag">{diag}</pre>
+                  <span className="usb-diag-hint">{tr.addDialog.usbDiagHint}</span>
+                </>
+              )}
             </div>
           ) : (
             <div className="row-2">

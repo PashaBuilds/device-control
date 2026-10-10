@@ -20,7 +20,7 @@ import { SmartLynqDriver } from './drivers/smartlynq'
 import type { PsuDriver } from './drivers/types'
 import { SsgDriver } from './drivers/ssg'
 import { HidScpiConnection } from './hid/connection'
-import { createNodeHidBackend, discoverMclDevices, type HidBackend } from './hid/mcl'
+import { createNodeHidBackend, diagnoseMcl, discoverMclDevices, type HidBackend } from './hid/mcl'
 import { Store } from './store'
 
 const LSR_OVP = 0b0100
@@ -32,6 +32,8 @@ export interface DeviceManagerOptions {
   pollIntervalMs?: number
   /** USB (HID) erişimi; verilmezse node-hid kullanılır (testlerde sahte arka uç). */
   hidBackend?: HidBackend
+  /** Tanılama raporunda gösterilen uygulama sürümü */
+  appVersion?: string
 }
 
 /** Yoklama aralığı: geçersiz kılma verilmişse o, yoksa cihaz türünün değeri. */
@@ -89,12 +91,14 @@ export class DeviceManager extends EventEmitter {
   private readonly devices = new Map<string, ManagedDevice>()
   private disposed = false
   private hidBackendInstance: HidBackend | null
+  private readonly appVersion: string
 
   constructor(opts: DeviceManagerOptions) {
     super()
     this.store = new Store(opts.dataDir)
     this.pollIntervalOverride = opts.pollIntervalMs
     this.hidBackendInstance = opts.hidBackend ?? null
+    this.appVersion = opts.appVersion ?? ''
     for (const config of this.store.load()) {
       this.devices.set(config.id, this.createManaged(config))
     }
@@ -421,17 +425,23 @@ export class DeviceManager extends EventEmitter {
     const info = deviceTypeInfo(dev.config.kind)
     const wanted = dev.config.usbSerial?.trim() ?? ''
     let target: UsbDeviceInfo | undefined
+    let unrecognized: UsbDeviceInfo[] = []
     try {
       const found = await discoverMclDevices(this.hidBackend, this.usbInUse(dev))
       target = found.find(
         (d) => !d.inUse && d.kind === dev.config.kind && (!wanted || d.serial === wanted)
       )
+      unrecognized = found.filter((d) => !d.model)
     } catch (err) {
       return fail(`USB cihazları taranamadı: ${(err as Error).message}`, err)
     }
     if (!target) {
       const what = wanted ? `${info.label} (SN ${wanted})` : info.label
-      const msg = `USB'de ${what} bulunamadı — kablo takılı ve cihaz açık mı?`
+      const why =
+        unrecognized.length > 0
+          ? ` — ${unrecognized.length} Mini-Circuits cihazı görünüyor ama yanıt vermedi (${unrecognized[0].error ?? '?'}). Cihaz ekle penceresindeki "Tanılama raporu"na bakın.`
+          : ' — kablo takılı ve cihaz açık mı?'
+      const msg = `USB'de ${what} bulunamadı${why}`
       return fail(msg, new Error(msg))
     }
 
@@ -806,6 +816,14 @@ export class DeviceManager extends EventEmitter {
 
   async listUsbDevices(): Promise<UsbDeviceInfo[]> {
     return discoverMclDevices(this.hidBackend, this.usbInUse())
+  }
+
+  async usbDiagnostics(): Promise<string> {
+    const head = [
+      `Cihaz Kontrol ${this.appVersion}`.trim(),
+      `Platform: ${process.platform} ${process.arch}, ${new Date().toISOString()}`
+    ]
+    return [...head, await diagnoseMcl(this.hidBackend, this.usbInUse())].join('\n')
   }
 
   async sendRaw(id: string, command: string): Promise<string | null> {

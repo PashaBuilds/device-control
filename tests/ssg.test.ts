@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   decodeScpiReport,
+  diagnoseMcl,
   discoverMclDevices,
   encodeScpiReport,
   kindForModel,
@@ -160,8 +161,45 @@ describe('HidScpiConnection + SsgDriver (sahte HID)', () => {
     expect(found).toEqual([
       { path: 'p1', productId: 0x22, model: 'SSG-6000RC', serial: '11401230001', kind: 'ssg6000rc', inUse: false },
       { path: 'p2', productId: 0x22, model: 'SSG-15G-RC', serial: 'X', kind: 'ssg15grc', inUse: true },
-      { path: 'p3', productId: 0x12, model: '', serial: '', kind: null, inUse: false }
+      {
+        path: 'p3',
+        productId: 0x12,
+        model: '',
+        serial: '',
+        kind: null,
+        inUse: false,
+        error: ':MN? yanıtsız: timeout: ":MN?" 30ms içinde yanıtlanmadı'
+      }
     ])
+  })
+
+  it('tanılama raporu: arayüzler, SCPI yanıtları ve eski kodlara ham yanıt', async () => {
+    const devices = demoDevices()
+    devices.push({ path: 'p3', productId: 0x12, sim: new SsgSim(SSG_6000RC_SPEC), legacy: true })
+    const report = await diagnoseMcl(new FakeHidBackend(devices), new Map(), 30)
+    expect(report).toContain('Toplam HID arayüzü: 4; Mini-Circuits (VID 0x20CE ya da adı uyan): 3')
+    expect(report).toContain('#1 VID 0x20CE PID 0x0022 · "Mini-Circuits" "SSG-6000RC"')
+    expect(report).toContain(':MN? → "MN=SSG-6000RC"')
+    // Eski protokollü cihaz: kod 1'e ikili yanıt, kod 40 model adını döndürür
+    expect(report).toContain(':MN? → İKİLİ yanıt (SCPI değil): [02 9c 36 45 ff')
+    expect(report).toMatch(/kod 40 → \[28 53 53 47[^\]]*\] "SSG-6000RC"/)
+  })
+
+  it('ikili (eski protokol) yanıt veren cihaz bozuk model adıyla değil, nedeniyle listelenir', async () => {
+    const devices: FakeHidDevice[] = [
+      { path: 'p9', productId: 0x22, sim: new SsgSim(SSG_15G_RC_SPEC), legacy: true }
+    ]
+    const [d] = await discoverMclDevices(new FakeHidBackend(devices), new Map(), 30)
+    expect(d.model).toBe('')
+    expect(d.kind).toBeNull()
+    expect(d.error).toMatch(/:MN\? yanıtsız: SCPI yerine ikili yanıt \(eski USB protokolü\) \[02 9c 36 45 ff/)
+  })
+
+  it('tanılama raporu: hiç Mini-Circuits yoksa görülen üreticileri listeler', async () => {
+    const report = await diagnoseMcl(new FakeHidBackend([]), new Map(), 30)
+    expect(report).toContain('Mini-Circuits (VID 0x20CE ya da adı uyan): 0')
+    expect(report).toContain('0x046D Logitech')
+    expect(report).toContain('Cihaz USB HID olarak görünmüyor')
   })
 })
 
@@ -234,6 +272,18 @@ describe('DeviceManager — sinyal üreteci (sahte HID)', () => {
     await expect(manager.setPower(id, 0)).rejects.toThrow(/kilidi/)
     await manager.setRfOutput(id, true)
     expect(devices[0].sim.rfOn).toBe(true)
+  })
+
+  it('yanıt vermeyen Mini-Circuits cihazı varsa bağlantı hatası bunu söyler', async () => {
+    devices[0].silent = true
+    const id = await add('ssg6000rc')
+    await expect(manager.connect(id)).rejects.toThrow(/1 Mini-Circuits cihazı görünüyor ama yanıt vermedi/)
+  })
+
+  it('tanılama raporu IPC yüzeyinden alınır', async () => {
+    const report = await manager.usbDiagnostics()
+    expect(report).toContain('HID kitaplığı: sahte HID arka ucu')
+    expect(report).toContain('Mini-Circuits (VID 0x20CE ya da adı uyan): 2')
   })
 
   it('seri numarasıyla seçer; bulunamazsa anlaşılır hata verir', async () => {
