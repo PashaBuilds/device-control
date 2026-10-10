@@ -89,6 +89,13 @@ npm run build && npm run e2e   # gerçek Electron + 2 TCP simülatörü, CDP ile
 
 ## Windows paketi üretme
 
+**Release'ler otomatiktir:** `main`'e gelen her yeni sürümde (`package.json` sürümü için henüz
+`v<sürüm>` etiketi yoksa) `.github/workflows/release.yml` GitHub'ın Windows makinesinde testleri
+koşar, paketi derler ve kurulum + taşınabilir exe ile release'i yayınlar. Release notu
+`docs/releases/v<sürüm>.md` dosyasından alınır.
+
+Yerelde elle üretmek için:
+
 ```bash
 npm run dist:win
 ```

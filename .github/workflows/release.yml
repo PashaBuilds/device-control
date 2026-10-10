@@ -1,0 +1,74 @@
+# main'e gelen her yeni sürüm (package.json "version" için henüz v<sürüm> etiketi yoksa)
+# Windows'ta test edilip derlenir ve GitHub release'i olarak yayınlanır.
+# Release notu: docs/releases/v<sürüm>.md (ilk satır "# Başlık", kalanı gövde).
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      exists: ${{ steps.ver.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: ver
+        run: |
+          v=$(node -p "require('./package.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$v" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "v$v zaten yayınlanmış — atlanıyor"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    needs: check
+    if: needs.check.outputs.exists == 'false'
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run dist:win
+      - name: GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="docs/releases/v$VERSION.md"
+          assets=(
+            "release/CihazKontrol-$VERSION-portable.exe"
+            "release/Cihaz Kontrol Setup $VERSION.exe"
+            "release/Cihaz Kontrol Setup $VERSION.exe.blockmap"
+          )
+          if [ -f "$notes" ]; then
+            title=$(head -n 1 "$notes" | sed 's/^#[[:space:]]*//')
+            tail -n +2 "$notes" > release-notes.md
+            gh release create "v$VERSION" "${assets[@]}" --target "$GITHUB_SHA" \
+              --title "$title" --notes-file release-notes.md
+          else
+            gh release create "v$VERSION" "${assets[@]}" --target "$GITHUB_SHA" \
+              --title "Cihaz Kontrol v$VERSION" --generate-notes
+          fi

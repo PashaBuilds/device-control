@@ -13,7 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "sim": "tsx tools/simulator/cli.ts",
-    "dist:win": "electron-vite build && electron-builder --win nsis --x64 && node tools/build-portable.mjs",
+    "dist:win": "electron-vite build && electron-builder --win nsis --x64 --publish never && node tools/build-portable.mjs",
     "e2e": "tsx tools/e2e/smoke.ts",
     "sim:lynq": "tsx tools/simulator/smartlynq-cli.ts",
     "sim:e36233a": "tsx tools/simulator/e36233a-cli.ts",
