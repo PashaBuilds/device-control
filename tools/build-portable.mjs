@@ -12,6 +12,7 @@
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -28,7 +29,29 @@ export function versionQuad(version) {
   return `${a}.${b}.${c}.0`
 }
 
-/** electron-builder önbelleğindeki en yeni makensis.exe. */
+/**
+ * NSIS derleyicisini electron-builder'ın kendi çözümleyicisiyle bulur (NSIS hedefinin
+ * kullandığı aynı paket; önbellekte yoksa indirir). Önbellek klasör düzeni sürümden
+ * sürüme değiştiği için (ör. `nsis/nsis-3.0.4.1/` → `nsis-3.0.4.1/nsis-3.0.4.1-<özet>/`)
+ * yol tahmin edilmez; çözümleyici kullanılamazsa eski düzende aranır.
+ * Dönüş: { path, env } — env, makensis'e verilecek NSISDIR gibi değişkenler.
+ */
+export async function resolveMakensis(cacheRoot, loadToolset = defaultToolsetLoader) {
+  try {
+    const { getMakeNsisPath } = loadToolset()
+    const found = await getMakeNsisPath()
+    if (found?.path && existsSync(found.path)) return { path: found.path, env: found.env ?? {} }
+  } catch {
+    // çözümleyici yok/değişmiş: eski önbellek düzenine düş
+  }
+  return { path: findMakensis(cacheRoot), env: {} }
+}
+
+function defaultToolsetLoader() {
+  return createRequire(import.meta.url)('app-builder-lib/out/toolsets/windows.js')
+}
+
+/** electron-builder önbelleğindeki (eski düzen) en yeni makensis.exe. */
 export function findMakensis(cacheRoot) {
   const nsisDir = join(cacheRoot, 'nsis')
   const versions = existsSync(nsisDir)
@@ -64,7 +87,7 @@ function defaultCacheRoot() {
   return join(process.env.LOCALAPPDATA ?? '', 'electron-builder', 'Cache')
 }
 
-export function buildPortable({
+export async function buildPortable({
   root = ROOT,
   appDir = join(root, 'release', 'win-unpacked'),
   cacheRoot = defaultCacheRoot()
@@ -86,11 +109,15 @@ export function buildPortable({
     COPYRIGHT: '© 2026 Mert Cukur'
   }
   const args = makensisArgs(defines, join(root, 'build', 'portable', 'portable.nsi'))
-  execFileSync(findMakensis(cacheRoot), args, { stdio: 'inherit' })
+  const makensis = await resolveMakensis(cacheRoot)
+  execFileSync(makensis.path, args, { stdio: 'inherit', env: { ...process.env, ...makensis.env } })
   console.log(`Taşınabilir exe: ${outFile} (BUILD_ID ${buildId})`)
   return outFile
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  buildPortable()
+  buildPortable().catch((err) => {
+    console.error(err)
+    process.exit(1)
+  })
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { computeBuildId, findMakensis, makensisArgs, versionQuad } from '../tools/build-portable.mjs'
+import { computeBuildId, findMakensis, makensisArgs, resolveMakensis, versionQuad } from '../tools/build-portable.mjs'
 
 describe('build-portable yardımcıları', () => {
   it('BUILD_ID sürüm + içerik özetinden belirlenir', () => {
@@ -24,6 +24,28 @@ describe('build-portable yardımcıları', () => {
       writeFileSync(join(root, 'nsis', v, 'Bin', 'makensis.exe'), '')
     }
     expect(findMakensis(root)).toBe(join(root, 'nsis', 'nsis-3.0.5.0', 'Bin', 'makensis.exe'))
+  })
+
+  it('makensis önce electron-builder çözümleyicisinden alınır (yeni önbellek düzeni)', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'ebcache-'))
+    const dir = join(root, 'nsis-3.0.4.1', 'nsis-3.0.4.1-abc12', 'Bin')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'makensis.exe'), '')
+    const env = { NSISDIR: join(root, 'nsis-3.0.4.1', 'nsis-3.0.4.1-abc12') }
+    const found = await resolveMakensis(root, () => ({
+      getMakeNsisPath: async () => ({ path: join(dir, 'makensis.exe'), env })
+    }))
+    expect(found).toEqual({ path: join(dir, 'makensis.exe'), env })
+  })
+
+  it('çözümleyici başarısızsa eski önbellek düzenine düşer', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'ebcache-'))
+    mkdirSync(join(root, 'nsis', 'nsis-3.0.4.1', 'Bin'), { recursive: true })
+    writeFileSync(join(root, 'nsis', 'nsis-3.0.4.1', 'Bin', 'makensis.exe'), '')
+    const found = await resolveMakensis(root, () => {
+      throw new Error('modül yok')
+    })
+    expect(found).toEqual({ path: join(root, 'nsis', 'nsis-3.0.4.1', 'Bin', 'makensis.exe'), env: {} })
   })
 
   it('makensis yoksa anlaşılır hata verir', () => {
