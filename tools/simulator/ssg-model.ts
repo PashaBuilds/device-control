@@ -153,6 +153,15 @@ export class SsgSim {
         this.rfOn = r[1] === 1
         break
       case 105: {
+        if (this.spec.series === 'xg') {
+          // Sahada SSG-15G-RC (FW D1): frekans bayt 3'ten itibaren ASCII MHz metni olarak
+          // geldi (9000 MHz → "9000.…"); kılavuzdaki ikili düzen değil. Sürücü bu ailede
+          // durumu SCPI ile okur; sim bu yanıtı gerçek cihaza benzer biçimde üretir.
+          out[1] = this.rfOn ? 1 : 0
+          out[2] = 1
+          putText(`${(this.frequencyHz / 1e6).toFixed(6)}`, 3)
+          break
+        }
         // 5.2.9: RF, kilit, frekans 5 bayt, işaret, |dBm|×100 2 bayt, unlevel high/low
         out[1] = this.rfOn ? 1 : 0
         out[2] = 1

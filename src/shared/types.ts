@@ -264,7 +264,7 @@ export interface UsbDeviceInfo {
   path: string
   /** USB ürün kimliği (PID) — tanılama için */
   productId: number
-  /** `:MN?` yanıtı, ör. "SSG-6000RC"; cihaz SCPI'ye yanıt vermediyse boş */
+  /** Model adı (kod 40), ör. "SSG-6000RC"; cihaz yanıt vermediyse boş */
   model: string
   /** `:SN?` yanıtı */
   serial: string

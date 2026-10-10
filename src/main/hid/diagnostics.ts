@@ -93,12 +93,14 @@ export async function diagnoseMcl(
       const kind = modelReply ? kindForModel(asciiz(modelReply, 1)) : null
       const series = kind ? DEVICE_TYPES.find((t) => t.kind === kind)?.rf?.usbSeries : undefined
       if (series) {
-        const body = encodeScpi(series, ':MN?')
-        try {
-          const r = await mclRequest(handle, body, timeoutMs)
-          out.push(`   SCPI :MN? [kod ${body[0]}] → "${decodeScpiReply(series, r)}"  [${hexBytes(r)}]`)
-        } catch (err) {
-          out.push(`   SCPI :MN? [kod ${body[0]}] → ${(err as Error).message}`)
+        for (const cmd of [':MN?', ':FREQ?', ':PWR?', ':PWR:RF?']) {
+          const body = encodeScpi(series, cmd)
+          try {
+            const r = await mclRequest(handle, body, timeoutMs)
+            out.push(`   SCPI ${cmd} [kod ${body[0]}] → "${decodeScpiReply(series, r)}"  [${hexBytes(r)}]`)
+          } catch (err) {
+            out.push(`   SCPI ${cmd} [kod ${body[0]}] → ${(err as Error).message}`)
+          }
         }
       } else {
         out.push('   SCPI denenmedi (model tanınmadı)')

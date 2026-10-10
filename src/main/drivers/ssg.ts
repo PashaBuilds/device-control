@@ -21,10 +21,46 @@ export interface SsgLink {
 
 const ack = (): string => 'tamam'
 
+const UNIT_HZ: Record<string, number> = { HZ: 1, KHZ: 1e3, MHZ: 1e6, GHZ: 1e9 }
+
+/** `:FREQ?` yanıtı → Hz. Kılavuz: birimsiz MHz ("2105.000000"); birim varsa ona göre. */
+export function parseScpiFrequencyHz(reply: string): number {
+  const m = reply.trim().match(/^([-+]?\d+(?:\.\d+)?)\s*(HZ|KHZ|MHZ|GHZ)?$/i)
+  if (!m) throw new Error(`:FREQ? yanıtı anlaşılamadı: "${reply}"`)
+  return Math.round(Number(m[1]) * UNIT_HZ[(m[2] ?? 'MHZ').toUpperCase()])
+}
+
+/** `:PWR?` yanıtı → dBm ("-10.25"). */
+export function parseScpiPowerDbm(reply: string): number {
+  const m = reply.trim().match(/^([-+]?\d+(?:\.\d+)?)\s*(DBM)?$/i)
+  if (!m) throw new Error(`:PWR? yanıtı anlaşılamadı: "${reply}"`)
+  return Number(m[1])
+}
+
+/** `:PWR:RF?` yanıtı → açık mı ("ON"/"OFF"). */
+export function parseScpiOnOff(reply: string): boolean {
+  const t = reply.trim().toUpperCase()
+  if (t === 'ON' || t === '1') return true
+  if (t === 'OFF' || t === '0') return false
+  throw new Error(`:PWR:RF? yanıtı anlaşılamadı: "${reply}"`)
+}
+
+/** dBm → SCPI metni ("-5.25", "0", "4.5"). */
+export function powerText(dbm: number): string {
+  const v = (Math.round(dbm * 100) / 100).toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
+  return v === '-0' ? '0' : v
+}
+
 /**
- * Mini-Circuits SSG serisi (SSG-6000RC, SSG-15G-RC) sinyal üreteci sürücüsü — USB ikili
- * komut kodları (Programming Manual C3, bölüm 5.2). Set komutlarının yanıtı yalnızca
- * kod yankısıdır; uygulanan değer kod 105 (çıkış durumu) ile geri okunur.
+ * Mini-Circuits SSG serisi (SSG-6000RC, SSG-15G-RC) sinyal üreteci sürücüsü — USB komut
+ * kodları (Programming Manual C3, bölüm 5.2).
+ *
+ * - '6000' ailesi (SSG-6000RC): ikili kodlar — 101 frekans, 102 güç, 104 RF, 105 durum.
+ * - 'xg' ailesi (SSG-15G-RC): kod 105'in yanıtı sahada kılavuzdaki ikili düzende değil,
+ *   frekansı ASCII metin olarak taşıyor (9000 MHz → bayt 3–7 "9000."). Bu yüzden bu ailede
+ *   ayar ve geri okuma USB üzerinden SCPI ile (kod 42) yapılır: `:FREQ:…MHz`, `:PWR:…`,
+ *   `:PWR:RF:ON|OFF` (yanıt 1 = tamam, 0 = başarısız) ve `:FREQ?`, `:PWR?`, `:PWR:RF?`.
+ *   SCPI'de kilit/seviye durumu sorgusu olmadığından bunlar bilinmiyor (null).
  */
 export class SsgDriver {
   constructor(
@@ -65,8 +101,14 @@ export class SsgDriver {
     return { model, serial, identity: parts.join(' · ') }
   }
 
-  /** Kod 105 — RF durumu, kilit, frekans, güç. */
+  /** RF durumu, frekans, güç ('6000': kod 105 ile kilit/seviye dahil; 'xg': SCPI). */
   async readState(): Promise<RfState> {
+    if (this.series === 'xg') {
+      const frequencyHz = parseScpiFrequencyHz(await this.scpi(':FREQ?'))
+      const powerDbm = parseScpiPowerDbm(await this.scpi(':PWR?'))
+      const outputOn = parseScpiOnOff(await this.scpi(':PWR:RF?'))
+      return { frequencyHz, powerDbm, outputOn, locked: null, unleveled: null }
+    }
     const reply = await this.req([MCL_CODE.OUTPUT_STATUS], {
       tx: '[105] durum?',
       rx: (d) => describeStatus(decodeOutputStatus(d))
@@ -74,15 +116,24 @@ export class SsgDriver {
     return decodeOutputStatus(reply)
   }
 
+  /** SCPI ayar komutu; cihaz "0 …" ile yanıtlarsa reddedilmiş sayılır. */
+  private async scpiSet(cmd: string): Promise<void> {
+    const reply = await this.scpi(cmd)
+    if (/^0\b/.test(reply.trim())) throw new Error(`Cihaz "${cmd}" komutunu reddetti (yanıt: ${reply})`)
+  }
+
   async setFrequency(hz: number): Promise<void> {
+    if (this.series === 'xg') return this.scpiSet(`:FREQ:${mhzText(hz)}MHz`)
     await this.req(encodeSetFrequency(this.series, hz), { tx: `[101] frekans ${mhzText(hz)} MHz`, rx: ack })
   }
 
   async setPower(dbm: number): Promise<void> {
+    if (this.series === 'xg') return this.scpiSet(`:PWR:${powerText(dbm)}`)
     await this.req(encodeSetPower(dbm), { tx: `[102] güç ${dbm.toFixed(2)} dBm`, rx: ack })
   }
 
   async setRfOutput(on: boolean): Promise<void> {
+    if (this.series === 'xg') return this.scpiSet(on ? ':PWR:RF:ON' : ':PWR:RF:OFF')
     await this.req(encodeSetRf(on), { tx: `[104] RF ${on ? 'AÇ' : 'KAPAT'}`, rx: ack })
   }
 

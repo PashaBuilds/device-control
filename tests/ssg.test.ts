@@ -126,16 +126,41 @@ describe('HidMclConnection + SsgDriver (sahte HID)', () => {
     conn.disconnect()
   })
 
-  it('SSG-15G-RC: frekans ASCII MHz ile gider, SCPI kod 42 ile', async () => {
+  it('SSG-15G-RC: ayar ve geri okuma USB üzerinden SCPI ile (kod 42), kod 105 kullanılmaz', async () => {
     const devices = demoDevices()
     const conn = new HidMclConnection(new FakeHidBackend(devices), 'p2')
     await conn.connect()
+    const log: string[] = []
+    conn.on('log', (e: { dir: string; line: string }) => log.push(`${e.dir} ${e.line}`))
     const drv = new SsgDriver(conn, 'xg')
-    await drv.setFrequency(12_345_678_901)
-    expect(String.fromCharCode(...devices[1].sim.received[0].slice(1, 18))).toBe('12345.678901\0\0\0\0\0')
-    expect((await drv.readState()).frequencyHz).toBe(12_345_678_901)
-    expect(await drv.scpi(':MN?')).toBe('SSG-15G-RC')
+    await drv.setFrequency(9_000_000_000)
+    await drv.setPower(0)
+    await drv.setRfOutput(true)
+    expect(await drv.readState()).toEqual({
+      frequencyHz: 9_000_000_000,
+      powerDbm: 0,
+      outputOn: true,
+      locked: null,
+      unleveled: null
+    })
+    expect(log).toEqual([
+      'tx :FREQ:9000MHz', 'rx 1',
+      'tx :PWR:0', 'rx 1',
+      'tx :PWR:RF:ON', 'rx 1',
+      'tx :FREQ?', 'rx 9000.000000',
+      'tx :PWR?', 'rx 0.00',
+      'tx :PWR:RF?', 'rx ON'
+    ])
+    await expect(drv.setPower(20)).rejects.toThrow(/reddetti/)
     conn.disconnect()
+  })
+
+  it('sahadaki SSG-15G-RC kod 105 yanıtı: frekans ASCII metin — ikili çözüm anlamsız (bu yüzden SCPI)', () => {
+    const sim = new SsgSim(SSG_15G_RC_SPEC)
+    sim.handle(':FREQ:9000MHz')
+    const r = sim.handleReport(Uint8Array.from([105]))
+    // Ekrandaki 245 621 600 302 Hz değeri = "9000." baytları
+    expect(decodeOutputStatus(r).frequencyHz).toBe(245_621_600_302)
   })
 
   it('kablo çekilince close yayar; yanıtsız cihazda zaman aşımı sayar', async () => {
@@ -196,6 +221,7 @@ describe('HidMclConnection + SsgDriver (sahte HID)', () => {
     expect(report).toContain('[105] durum → RF KAPALI · kilitli · 25 MHz · -65.00 dBm')
     expect(report).toContain('SCPI :MN? [kod 121] → "SSG-6000RC"')
     expect(report).toContain('SCPI :MN? [kod 42] → "SSG-15G-RC"')
+    expect(report).toContain('SCPI :FREQ? [kod 42] → "10.000000"')
   })
 
   it('tanılama raporu: hiç Mini-Circuits yoksa görülen üreticileri listeler', async () => {
@@ -254,13 +280,13 @@ describe('DeviceManager — sinyal üreteci (sahte HID)', () => {
     const [snap] = (await manager.listSnapshots()).filter((s) => s.id === id)
     expect(snap.state).toBe('connected')
     expect(snap.identity).toContain('SSG-15G-RC')
-    expect(snap.rf).toEqual({ frequencyHz: 10e6, powerDbm: -45, outputOn: false, locked: true, unleveled: null })
+    expect(snap.rf).toEqual({ frequencyHz: 10e6, powerDbm: -45, outputOn: false, locked: null, unleveled: null })
 
     await manager.setFrequency(id, 12.5e9)
     await manager.setPower(id, 3.25)
     await manager.setRfOutput(id, true)
     const s = await waitForSnapshot(manager, (x) => x.id === id && x.rf?.outputOn === true)
-    expect(s.rf).toEqual({ frequencyHz: 12.5e9, powerDbm: 3.25, outputOn: true, locked: true, unleveled: null })
+    expect(s.rf).toEqual({ frequencyHz: 12.5e9, powerDbm: 3.25, outputOn: true, locked: null, unleveled: null })
     expect(devices[1].sim.rfOn).toBe(true)
     expect(devices[0].sim.rfOn).toBe(false)
   })
