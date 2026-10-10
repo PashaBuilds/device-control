@@ -53,7 +53,7 @@ export const tr = {
       `Takılı ${label} bulunamadı. Kaydı yine de ekleyebilirsiniz; Bağlan'a basınca cihaz yeniden aranır.`,
     usbFoundCount: (n: number) => `${n} cihaz bulundu`,
     usbUnrecognized: (pid: string) =>
-      `Bir Mini-Circuits USB cihazı görünüyor (PID ${pid}) ancak USB üzerinden SCPI komutlarına yanıt vermedi.`,
+      `Bir Mini-Circuits USB cihazı görünüyor (PID ${pid}) ancak model adı sorgusuna yanıt vermedi.`,
     usbOtherModel: (model: string) => `Takılı başka model: ${model}`,
     usbScanError: (msg: string) => `USB taranamadı: ${msg}`,
     usbDiag: 'Tanılama raporu',
@@ -118,6 +118,9 @@ export const tr = {
     frequency: 'Frekans',
     power: 'Güç',
     readback: 'Cihazdaki değer',
+    unlocked: 'Frekans kilitli değil — cihaz sentezleyicisi istenen frekansa kilitlenemedi.',
+    unleveledHigh: 'İstenen güç bu frekansta cihazın verebileceğinin üstünde; çıkış daha düşük.',
+    unleveledLow: 'İstenen güç bu frekansta cihazın inebileceğinin altında; çıkış daha yüksek.',
     range: (minMHz: number, maxMHz: number, minDbm: number, maxDbm: number, stepDb: number) =>
       `Aralık: ${minMHz}–${maxMHz} MHz · ${minDbm}…+${maxDbm} dBm (${String(stepDb).replace('.', ',')} dB adım)`,
     hint: 'Değeri yazıp Enter’a basın; ↑↓ tuşları frekansı 1 MHz, gücü bir adım değiştirir.',

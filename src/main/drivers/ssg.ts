@@ -1,95 +1,63 @@
 import type { LogSource, RfState } from '@shared/types'
-import { stripTag } from '../hid/mcl'
+import type { RequestLog } from '../hid/connection'
+import { MCL_CODE, asciiz, hexBytes, isPrintable, stripTag } from '../hid/mcl'
+import {
+  decodeFirmware,
+  decodeOutputStatus,
+  decodeScpiReply,
+  describeStatus,
+  encodeScpi,
+  encodeSetFrequency,
+  encodeSetPower,
+  encodeSetRf,
+  mhzText,
+  type SsgSeries
+} from '../hid/ssgProtocol'
 
-/** Sürücünün ihtiyaç duyduğu bağlantı yüzeyi (HidScpiConnection karşılar). */
+/** Sürücünün ihtiyaç duyduğu bağlantı yüzeyi (HidMclConnection karşılar). */
 export interface SsgLink {
-  query(cmd: string, source?: LogSource): Promise<string>
+  request(body: number[], source: LogSource, log: RequestLog): Promise<Uint8Array>
 }
 
-/** "0 - Invalid command" gibi hata yanıtları (sorgu yanıtı sanılmasın diye). */
-function isErrorReply(reply: string): boolean {
-  return /invalid|error|fail|out of range|^0\s*-/i.test(reply.trim())
-}
-
-const UNIT_HZ: Record<string, number> = { HZ: 1, KHZ: 1e3, MHZ: 1e6, GHZ: 1e9 }
+const ack = (): string => 'tamam'
 
 /**
- * `:FREQ?` yanıtını Hz'e çevirir. Birim varsa ona göre; yoksa büyüklükten
- * çıkarılır: SSG'lerin en düşük frekansı 10 MHz olduğundan ≥ 100 000 bir Hz
- * değeridir, daha küçüğü MHz'dir (en yüksek 15 000 MHz). Okunamazsa null.
+ * Mini-Circuits SSG serisi (SSG-6000RC, SSG-15G-RC) sinyal üreteci sürücüsü — USB ikili
+ * komut kodları (Programming Manual C3, bölüm 5.2). Set komutlarının yanıtı yalnızca
+ * kod yankısıdır; uygulanan değer kod 105 (çıkış durumu) ile geri okunur.
  */
-export function parseFrequencyHz(reply: string): number | null {
-  if (isErrorReply(reply)) return null
-  const m = stripTag(reply, 'FREQ').match(/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*(HZ|KHZ|MHZ|GHZ)?/i)
-  if (!m) return null
-  const n = Number(m[1])
-  if (!Number.isFinite(n)) return null
-  if (m[2]) return Math.round(n * UNIT_HZ[m[2].toUpperCase()])
-  return Math.round(n >= 1e5 ? n : n * 1e6)
-}
-
-/** `:PWR?` yanıtından dBm; okunamazsa null. */
-export function parsePowerDbm(reply: string): number | null {
-  if (isErrorReply(reply)) return null
-  const m = stripTag(reply, 'PWR').match(/[-+]?\d+(?:\.\d+)?/)
-  if (!m) return null
-  const n = Number(m[0])
-  return Number.isFinite(n) ? n : null
-}
-
-/** `:PWR:RF?` yanıtı: ON/OFF ya da 1/0; okunamazsa null. */
-export function parseOnOff(reply: string): boolean | null {
-  if (isErrorReply(reply)) return null
-  const t = reply.trim().toUpperCase()
-  if (/\bON\b/.test(t) || /^1\b/.test(t)) return true
-  if (/\bOFF\b/.test(t) || /^0\b/.test(t)) return false
-  return null
-}
-
-/**
- * Set komutu yanıtını denetler. Mini-Circuits başarıyı "1"/"1 - Success",
- * başarısızlığı "0 - …" ya da hata metniyle bildirir; boş yanıt başarı sayılır.
- */
-export function checkSetReply(cmd: string, reply: string): void {
-  const t = reply.trim()
-  if (/^0\b/.test(t) || isErrorReply(t)) {
-    throw new Error(`Cihaz "${cmd}" komutunu reddetti: ${t}`)
-  }
-}
-
-/** Hz → ":FREQ:2400.5MHz" (Hz çözünürlüğünde, gereksiz sıfırlar atılır). */
-export function formatFrequencyCommand(hz: number): string {
-  const mhz = (Math.round(hz) / 1e6).toFixed(6).replace(/0+$/, '').replace(/\.$/, '')
-  return `:FREQ:${mhz}MHz`
-}
-
-/** dBm → ":PWR:-5.25" */
-export function formatPowerCommand(dbm: number): string {
-  const v = (Math.round(dbm * 100) / 100).toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
-  return `:PWR:${v === '-0' ? '0' : v}`
-}
-
-/** Mini-Circuits SSG serisi (SSG-6000RC, SSG-15G-RC) sinyal üreteci sürücüsü. */
 export class SsgDriver {
   constructor(
     private readonly link: SsgLink,
+    private readonly series: SsgSeries,
     private readonly source: LogSource = 'user'
   ) {}
 
-  private q(cmd: string): Promise<string> {
-    return this.link.query(cmd, this.source)
+  private req(body: number[], log: RequestLog): Promise<Uint8Array> {
+    return this.link.request(body, this.source, log)
   }
 
-  /** Model ve seri numarası; ör. "Mini-Circuits SSG-6000RC · SN 11401230001 · FW C4". */
+  /** Model, seri no ve ürün yazılımı; ör. "Mini-Circuits SSG-6000RC · SN 11401230001 · FW C4". */
   async identify(): Promise<{ model: string; serial: string; identity: string }> {
-    const model = stripTag(await this.q(':MN?'), 'MN')
-    const serial = stripTag(await this.q(':SN?'), 'SN')
+    const text = (d: Uint8Array): string => {
+      const t = asciiz(d, 1)
+      return isPrintable(t) ? t : `[${hexBytes(d)}]`
+    }
+    const model = stripTag(
+      asciiz(await this.req([MCL_CODE.MODEL_NAME], { tx: '[40] model adı?', rx: text }), 1),
+      'MN'
+    )
+    const serial = stripTag(
+      asciiz(await this.req([MCL_CODE.SERIAL_NUMBER], { tx: '[41] seri no?', rx: text }), 1),
+      'SN'
+    )
     let firmware = ''
     try {
-      firmware = stripTag(await this.q(':FIRMWARE?'), 'FIRMWARE')
-      if (isErrorReply(firmware)) firmware = ''
+      firmware = decodeFirmware(
+        await this.req([MCL_CODE.FIRMWARE], { tx: '[99] ürün yazılımı?', rx: decodeFirmware })
+      )
     } catch {
-      // Ürün yazılımı sorgusu yoksa kimlik onsuz da yeterli
+      // Ürün yazılımı okunamazsa kimlik onsuz da yeterli
     }
     const parts = [`Mini-Circuits ${model}`]
     if (serial) parts.push(`SN ${serial}`)
@@ -97,26 +65,33 @@ export class SsgDriver {
     return { model, serial, identity: parts.join(' · ') }
   }
 
-  /** Cihaz durumunu okur; okunamayan alan null döner (son bilinen değer korunur). */
-  async readState(): Promise<{ [K in keyof RfState]: RfState[K] | null }> {
-    const frequencyHz = parseFrequencyHz(await this.q(':FREQ?'))
-    const powerDbm = parsePowerDbm(await this.q(':PWR?'))
-    const outputOn = parseOnOff(await this.q(':PWR:RF?'))
-    return { frequencyHz, powerDbm, outputOn }
+  /** Kod 105 — RF durumu, kilit, frekans, güç. */
+  async readState(): Promise<RfState> {
+    const reply = await this.req([MCL_CODE.OUTPUT_STATUS], {
+      tx: '[105] durum?',
+      rx: (d) => describeStatus(decodeOutputStatus(d))
+    })
+    return decodeOutputStatus(reply)
   }
 
   async setFrequency(hz: number): Promise<void> {
-    const cmd = formatFrequencyCommand(hz)
-    checkSetReply(cmd, await this.q(cmd))
+    await this.req(encodeSetFrequency(this.series, hz), { tx: `[101] frekans ${mhzText(hz)} MHz`, rx: ack })
   }
 
   async setPower(dbm: number): Promise<void> {
-    const cmd = formatPowerCommand(dbm)
-    checkSetReply(cmd, await this.q(cmd))
+    await this.req(encodeSetPower(dbm), { tx: `[102] güç ${dbm.toFixed(2)} dBm`, rx: ack })
   }
 
   async setRfOutput(on: boolean): Promise<void> {
-    const cmd = on ? ':PWR:RF:ON' : ':PWR:RF:OFF'
-    checkSetReply(cmd, await this.q(cmd))
+    await this.req(encodeSetRf(on), { tx: `[104] RF ${on ? 'AÇ' : 'KAPAT'}`, rx: ack })
+  }
+
+  /** SCPI komutu (konsol için): '6000' ailesinde kod 121, diğerlerinde kod 42. */
+  async scpi(cmd: string): Promise<string> {
+    const reply = await this.req(encodeScpi(this.series, cmd), {
+      tx: cmd,
+      rx: (d) => decodeScpiReply(this.series, d)
+    })
+    return decodeScpiReply(this.series, reply)
   }
 }

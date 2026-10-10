@@ -1,21 +1,27 @@
 import { EventEmitter } from 'node:events'
 import type { LogSource } from '@shared/types'
-import { MclTimeoutError, mclTransact, type HidBackend, type HidDeviceHandle } from './mcl'
+import { MclTimeoutError, mclRequest, type HidBackend, type HidDeviceHandle } from './mcl'
 
-export interface HidScpiConnectionOptions {
+export interface HidMclConnectionOptions {
   timeoutMs?: number
 }
 
+/** Konsol/günlük için insan okunur satırlar: gönderilen komutun adı ve yanıtın özeti. */
+export interface RequestLog {
+  tx: string
+  rx: (reply: Uint8Array) => string
+}
+
 /**
- * Mini-Circuits USB (HID) cihazıyla SCPI iletişimi.
+ * Mini-Circuits USB (HID) cihazıyla istek/yanıt iletişimi.
  *
- * ScpiConnection'ın USB karşılığı: komutlar tek sırada işlenir; Mini-Circuits
- * her komutu (set dahil) bir yanıt raporuyla karşıladığı için her komut bir
- * sorgudur. G/Ç hatasında (kablo çekildi) bağlantı kapanır ve 'close' yayılır.
+ * ScpiConnection'ın USB karşılığı: komut raporları tek sırada işlenir; her komut
+ * aynı kodla başlayan bir yanıt raporu alır. G/Ç hatasında (kablo çekildi) bağlantı
+ * kapanır ve 'close' yayılır.
  *
  * Olaylar: 'log' ({dir, line, source}), 'close'
  */
-export class HidScpiConnection extends EventEmitter {
+export class HidMclConnection extends EventEmitter {
   private handle: HidDeviceHandle | null = null
   private chain: Promise<unknown> = Promise.resolve()
   private readonly timeoutMs: number
@@ -26,7 +32,7 @@ export class HidScpiConnection extends EventEmitter {
   constructor(
     private readonly backend: HidBackend,
     readonly path: string,
-    opts: HidScpiConnectionOptions = {}
+    opts: HidMclConnectionOptions = {}
   ) {
     super()
     this.timeoutMs = opts.timeoutMs ?? 1500
@@ -49,26 +55,26 @@ export class HidScpiConnection extends EventEmitter {
     void handle?.close().catch(() => undefined)
   }
 
-  /** Komutu gönderir, yanıt metnini döndürür (set komutları dahil). */
-  query(cmd: string, source: LogSource = 'user'): Promise<string> {
-    const run = async (): Promise<string> => {
+  /** Komut raporunu gönderir, yanıt raporunu döndürür. */
+  request(body: number[], source: LogSource, log: RequestLog): Promise<Uint8Array> {
+    const run = async (): Promise<Uint8Array> => {
       const handle = this.handle
       if (!this._connected || !handle) throw new Error('disconnected')
-      this.emit('log', { dir: 'tx', line: cmd, source })
-      let reply: string
+      this.emit('log', { dir: 'tx', line: log.tx, source })
+      let reply: Uint8Array
       try {
-        reply = await mclTransact(handle, cmd, this.timeoutMs)
+        reply = await mclRequest(handle, body, this.timeoutMs)
       } catch (err) {
         if (err instanceof MclTimeoutError) {
           this.consecutiveTimeouts += 1
-          throw err
+          throw new Error(`timeout: "${log.tx}" ${this.timeoutMs}ms içinde yanıtlanmadı`)
         }
         // Yazma/okuma hatası: cihaz çıkarıldı ya da erişim kayboldu
         this.handleIoError()
         throw new Error(`USB iletişim hatası: ${(err as Error).message}`)
       }
       this.consecutiveTimeouts = 0
-      this.emit('log', { dir: 'rx', line: reply, source })
+      this.emit('log', { dir: 'rx', line: log.rx(reply), source })
       return reply
     }
     const result = this.chain.then(run, run)

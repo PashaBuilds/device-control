@@ -11,8 +11,13 @@ export interface RfLimits {
   maxPowerDbm: number
   /** Adım düğmeleri / ok tuşları için güç adımı (dB) */
   powerStepDb: number
-  /** Cihazın model adı öneki (`:MN?` yanıtı bununla başlar), ör. "SSG-6000" */
+  /** Cihazın model adı öneki (model adı yanıtı bununla başlar), ör. "SSG-6000" */
   modelPrefix: string
+  /**
+   * USB komut ailesi (Mini-Circuits programlama kılavuzu bölüm 5): '6000' = SSG-6000RC/6001RC
+   * (frekans 5 baytlık Hz, SCPI kodu 121); 'xg' = diğerleri (frekans ASCII MHz, SCPI kodu 42).
+   */
+  usbSeries: '6000' | 'xg'
 }
 
 export interface DeviceTypeInfo {
@@ -130,7 +135,8 @@ export const DEVICE_TYPES: DeviceTypeInfo[] = [
       minPowerDbm: -65,
       maxPowerDbm: 14,
       powerStepDb: 0.25,
-      modelPrefix: 'SSG-6000'
+      modelPrefix: 'SSG-6000',
+      usbSeries: '6000'
     }
   },
   {
@@ -153,7 +159,8 @@ export const DEVICE_TYPES: DeviceTypeInfo[] = [
       minPowerDbm: -45,
       maxPowerDbm: 10,
       powerStepDb: 0.25,
-      modelPrefix: 'SSG-15G'
+      modelPrefix: 'SSG-15G',
+      usbSeries: 'xg'
     }
   }
 ]
@@ -245,6 +252,10 @@ export interface RfState {
   frequencyHz: number
   powerDbm: number
   outputOn: boolean
+  /** Frekans sentezleyici kilitli mi (cihaz durum raporundan; bilinmiyorsa null) */
+  locked: boolean | null
+  /** İstenen güç cihazın sağlayabileceğinin üstünde/altında mı */
+  unleveled: 'high' | 'low' | null
 }
 
 /** Bilgisayara USB ile takılı, tanınan bir Mini-Circuits cihazı. */

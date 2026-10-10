@@ -1505,6 +1505,16 @@ button {
   letter-spacing: 0;
   text-transform: none;
 }
+.rf-warn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+  border-bottom: 1px solid var(--line);
+}
 .rf-hint {
   display: flex;
   flex-direction: column;

@@ -1,12 +1,12 @@
 /**
  * Sahte Mini-Circuits HID arka ucu: SsgSim örneklerini gerçek USB raporu
- * biçimiyle (rapor kimliği + 64 bayt, kod 1 = SCPI) konuşturur.
+ * biçimiyle (rapor kimliği + 64 bayt, bayt 0 = kesme kodu) konuşturur.
  *
  * Testlerde ve `DC_FAKE_HID=1` ile başlatılan uygulamada (donanımsız
  * arayüz denemesi / e2e) gerçek node-hid yerine kullanılır.
  */
 import type { HidBackend, HidDeviceEntry, HidDeviceHandle } from '../../src/main/hid/mcl'
-import { MCL_REPORT_SIZE, MCL_SCPI_CODE, MCL_VENDOR_ID } from '../../src/main/hid/mcl'
+import { MCL_VENDOR_ID } from '../../src/main/hid/mcl'
 import { SSG_15G_RC_SPEC, SSG_6000RC_SPEC, SsgSim } from './ssg-model'
 
 export interface FakeHidDevice {
@@ -15,11 +15,6 @@ export interface FakeHidDevice {
   sim: SsgSim
   /** true: hiçbir rapora yanıt vermez */
   silent?: boolean
-  /**
-   * true: SCPI'yi (kod 1) tanımaz, yalnızca ikili model/seri kodlarına (40/41)
-   * yanıt verir — eski ürün yazılımı taklidi (tanılama raporu testi için)
-   */
-  legacy?: boolean
   unplugged?: boolean
 }
 
@@ -38,36 +33,8 @@ class FakeHandle implements HidDeviceHandle {
   async write(data: Buffer): Promise<void> {
     this.check()
     // data[0] rapor kimliği (0), data[1..64] rapor
-    const report = data.subarray(1)
     if (this.dev.silent) return
-    if (this.dev.legacy) {
-      if (report[0] === MCL_SCPI_CODE) {
-        // Gerçek eski cihazdaki gibi: kod 1'e metin değil ikili durum verisi
-        const reply = Buffer.alloc(MCL_REPORT_SIZE, 0xff)
-        reply[0] = MCL_SCPI_CODE
-        reply.set([0x02, 0x9c, 0x36, 0x45], 1)
-        this.inbox.push(reply)
-        this.waiter?.()
-        return
-      }
-      if (report[0] === 40 || report[0] === 41) {
-        const reply = Buffer.alloc(MCL_REPORT_SIZE)
-        reply[0] = report[0]
-        const spec = this.dev.sim.spec
-        Buffer.from(report[0] === 40 ? spec.model : spec.serial, 'ascii').copy(reply, 1)
-        this.inbox.push(reply)
-        this.waiter?.()
-      }
-      return
-    }
-    if (report[0] !== MCL_SCPI_CODE) return
-    let end = 1
-    while (end < report.length && report[end] !== 0) end++
-    const cmd = Buffer.from(report.subarray(1, end)).toString('ascii')
-    const reply = Buffer.alloc(MCL_REPORT_SIZE)
-    reply[0] = MCL_SCPI_CODE
-    Buffer.from(this.dev.sim.handle(cmd), 'ascii').copy(reply, 1, 0, MCL_REPORT_SIZE - 2)
-    this.inbox.push(reply)
+    this.inbox.push(this.dev.sim.handleReport(data.subarray(1)))
     this.waiter?.()
   }
 

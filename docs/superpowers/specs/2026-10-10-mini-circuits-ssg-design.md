@@ -1,5 +1,14 @@
 # Mini-Circuits SSG-6000RC / SSG-15G-RC — USB kontrol tasarımı
 
+> **Güncelleme (v0.12.0):** Aşağıdaki ilk tasarım "kod 1 + SCPI metni" biçimini varsayıyordu;
+> sahada iki cihaz da bu biçime ikili veriyle yanıt verdi. Programlama kılavuzu (C3) bölüm 5'e
+> göre SSG'ler USB'de **ikili kesme kodları** kullanır: 40 model, 41 seri, 99 ürün yazılımı,
+> 101 frekans (SSG-6000: 5 bayt Hz; diğerleri: ASCII MHz), 102 güç (işaret + |dBm|×100),
+> 104 RF, 105 durum; SCPI SSG-6000'de kod 121 (+uzunluk), diğerlerinde kod 42. Sürücü
+> (`src/main/hid/ssgProtocol.ts`, `drivers/ssg.ts`) ve simülatör buna göre yeniden yazıldı;
+> testler kılavuzdaki örnek paketleri birebir kullanır. Aşağıdaki "Protokol" bölümü
+> tarihsel kayıttır.
+
 **Tarih:** 2026-10-10 · **Sürüm:** 0.11.0
 
 ## Amaç

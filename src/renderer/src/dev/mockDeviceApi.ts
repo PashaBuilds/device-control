@@ -221,11 +221,13 @@ function readSetpoints(dev: MockDevice, ch: number): ChannelSetpoints {
 
 function readRf(dev: MockDevice): RfState {
   const s = dev.ssg!
-  if (dev.state !== 'connected') return { frequencyHz: s.frequencyHz, powerDbm: s.powerDbm, outputOn: false }
+  if (dev.state !== 'connected') {
+    return { frequencyHz: s.frequencyHz, powerDbm: s.powerDbm, outputOn: false, locked: null, unleveled: null }
+  }
   ask(dev, ':FREQ?', 'poll')
   ask(dev, ':PWR?', 'poll')
   ask(dev, ':PWR:RF?', 'poll')
-  return { frequencyHz: s.frequencyHz, powerDbm: s.powerDbm, outputOn: s.rfOn }
+  return { frequencyHz: s.frequencyHz, powerDbm: s.powerDbm, outputOn: s.rfOn, locked: true, unleveled: null }
 }
 
 function snapshot(dev: MockDevice): DeviceSnapshot {

@@ -2,25 +2,20 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { asciiz, discoverMclDevices, encodeReport, kindForModel, stripTag } from '../src/main/hid/mcl'
+import { diagnoseMcl } from '../src/main/hid/diagnostics'
+import { HidMclConnection } from '../src/main/hid/connection'
 import {
-  decodeScpiReport,
-  diagnoseMcl,
-  discoverMclDevices,
-  encodeScpiReport,
-  kindForModel,
-  MCL_SCPI_CODE,
-  stripTag
-} from '../src/main/hid/mcl'
-import { HidScpiConnection } from '../src/main/hid/connection'
-import {
-  checkSetReply,
-  formatFrequencyCommand,
-  formatPowerCommand,
-  parseFrequencyHz,
-  parseOnOff,
-  parsePowerDbm,
-  SsgDriver
-} from '../src/main/drivers/ssg'
+  decodeOutputStatus,
+  decodeScpiReply,
+  encodeScpi,
+  encodeSetFrequency,
+  encodeSetPower,
+  encodeSetRf,
+  hzBytes,
+  mhzText
+} from '../src/main/hid/ssgProtocol'
+import { SsgDriver } from '../src/main/drivers/ssg'
 import { DeviceManager } from '../src/main/deviceManager'
 import type { DeviceSnapshot } from '../src/shared/types'
 import { FakeHidBackend, type FakeHidDevice } from '../tools/simulator/ssg-hid'
@@ -28,139 +23,158 @@ import { SSG_15G_RC_SPEC, SSG_6000RC_SPEC, SsgSim } from '../tools/simulator/ssg
 
 function demoDevices(): FakeHidDevice[] {
   return [
-    { path: 'p1', productId: 0x22, sim: new SsgSim(SSG_6000RC_SPEC) },
-    { path: 'p2', productId: 0x22, sim: new SsgSim(SSG_15G_RC_SPEC) }
+    { path: 'p1', productId: 0x12, sim: new SsgSim(SSG_6000RC_SPEC) },
+    { path: 'p2', productId: 0x12, sim: new SsgSim(SSG_15G_RC_SPEC) }
   ]
 }
 
 describe('Mini-Circuits HID çerçeveleme', () => {
-  it('SCPI komutunu rapor kimliği + 64 bayta kodlar', () => {
-    const buf = encodeScpiReport(':FREQ?')
+  it('gövdeyi rapor kimliği + 64 bayta yerleştirir', () => {
+    const buf = encodeReport([105])
     expect(buf.length).toBe(65)
     expect(buf[0]).toBe(0)
-    expect(buf[1]).toBe(MCL_SCPI_CODE)
-    expect(buf.subarray(2, 8).toString('ascii')).toBe(':FREQ?')
-    expect(buf.subarray(8).every((b) => b === 0)).toBe(true)
+    expect(buf[1]).toBe(105)
+    expect(buf.subarray(2).every((b) => b === 0)).toBe(true)
+    expect(() => encodeReport(new Array(65).fill(1))).toThrow(/1–64/)
   })
 
-  it('63 baytı aşan komutu reddeder', () => {
-    expect(() => encodeScpiReport('x'.repeat(64))).toThrow(/uzun/)
-    expect(encodeScpiReport('x'.repeat(63)).length).toBe(65)
-  })
-
-  it('yanıt raporunu NUL’a kadar çözer; başka koddaki raporu yok sayar', () => {
+  it('NUL ile biten metni çözer; model adından türü bulur', () => {
     const r = new Uint8Array(64)
-    r[0] = 1
-    r.set(Buffer.from('SSG-6000RC'), 1)
-    expect(decodeScpiReport(r)).toBe('SSG-6000RC')
     r[0] = 40
-    expect(decodeScpiReport(r)).toBeNull()
-  })
-
-  it('model adından türü bulur, etiketi atar', () => {
+    r.set(Buffer.from('SSG-6000RC'), 1)
+    expect(asciiz(r, 1)).toBe('SSG-6000RC')
     expect(kindForModel('SSG-6000RC')).toBe('ssg6000rc')
     expect(kindForModel('ssg-15g-rc')).toBe('ssg15grc')
     expect(kindForModel('RUDAT-6000-60')).toBeNull()
     expect(stripTag('MN=SSG-6000RC', 'MN')).toBe('SSG-6000RC')
-    expect(stripTag(' 11401230001 ', 'SN')).toBe('11401230001')
   })
 })
 
-describe('SSG yanıt ayrıştırma', () => {
-  it('frekans: birimli, birimsiz Hz ve birimsiz MHz', () => {
-    expect(parseFrequencyHz('2400.500000')).toBe(2_400_500_000)
-    expect(parseFrequencyHz('2400500000')).toBe(2_400_500_000)
-    expect(parseFrequencyHz('2.4 GHz')).toBe(2_400_000_000)
-    expect(parseFrequencyHz('25MHz')).toBe(25_000_000)
-    expect(parseFrequencyHz('0 - Invalid command')).toBeNull()
-    expect(parseFrequencyHz('')).toBeNull()
+describe('SSG USB paketleri — kılavuz (C3) bölüm 5.2 örnekleri', () => {
+  it('5.2.3/5.2.5: 6000 ailesinde frekans 5 bayt Hz, en anlamlı önce', () => {
+    expect(hzBytes(5_501_560_000)).toEqual([1, 71, 235, 36, 192])
+    expect(hzBytes(4_100_550_000)).toEqual([0, 244, 105, 109, 112])
+    expect(encodeSetFrequency('6000', 4_100_550_000)).toEqual([101, 0, 244, 105, 109, 112, 0])
   })
 
-  it('güç ve RF durumu', () => {
-    expect(parsePowerDbm('-5.25')).toBe(-5.25)
-    expect(parsePowerDbm('PWR=10.00')).toBe(10)
-    expect(parsePowerDbm('0 - Invalid command')).toBeNull()
-    expect(parseOnOff('ON')).toBe(true)
-    expect(parseOnOff('OFF')).toBe(false)
-    expect(parseOnOff('1')).toBe(true)
-    expect(parseOnOff('0')).toBe(false)
-    expect(parseOnOff('0 - Invalid command')).toBeNull()
+  it('5.2.6: xG ailesinde frekans ASCII MHz metni + NUL', () => {
+    expect(encodeSetFrequency('xg', 4_100_550_000)).toEqual([101, 52, 49, 48, 48, 46, 53, 53, 0])
+    expect(mhzText(25_000_003)).toBe('25.000003')
+    expect(mhzText(6_000_000_000)).toBe('6000')
   })
 
-  it('komut biçimleri', () => {
-    expect(formatFrequencyCommand(2_400_500_000)).toBe(':FREQ:2400.5MHz')
-    expect(formatFrequencyCommand(25_000_003)).toBe(':FREQ:25.000003MHz')
-    expect(formatFrequencyCommand(6_000_000_000)).toBe(':FREQ:6000MHz')
-    expect(formatPowerCommand(-5.25)).toBe(':PWR:-5.25')
-    expect(formatPowerCommand(10)).toBe(':PWR:10')
-    expect(formatPowerCommand(-0.001)).toBe(':PWR:0')
+  it('5.2.7: güç işaret + |dBm|×100 iki bayt; 5.2.8: RF aç/kapat', () => {
+    expect(encodeSetPower(-5.5)).toEqual([102, 1, 2, 38, 0])
+    expect(encodeSetPower(4.5)).toEqual([102, 0, 1, 194, 0])
+    expect(encodeSetPower(-0.001)).toEqual([102, 0, 0, 0, 0])
+    expect(encodeSetRf(true)).toEqual([104, 1])
+    expect(encodeSetRf(false)).toEqual([104, 0])
   })
 
-  it('set yanıtı denetimi', () => {
-    expect(() => checkSetReply(':PWR:1', '1 - Success')).not.toThrow()
-    expect(() => checkSetReply(':PWR:1', '1')).not.toThrow()
-    expect(() => checkSetReply(':PWR:1', '')).not.toThrow()
-    expect(() => checkSetReply(':PWR:99', '0 - Power out of range')).toThrow(/reddetti/)
+  it('5.2.9: durum yanıtı çözülür (4980.50 MHz, +5.5 dBm, RF açık, kilitli)', () => {
+    const r = new Uint8Array(64)
+    r.set([105, 1, 1, 1, 40, 220, 102, 32, 0, 2, 38, 0, 0])
+    expect(decodeOutputStatus(r)).toEqual({
+      outputOn: true,
+      locked: true,
+      frequencyHz: 4_980_500_000,
+      powerDbm: 5.5,
+      unleveled: null
+    })
+    r[8] = 1
+    r[11] = 1
+    expect(decodeOutputStatus(r)).toMatchObject({ powerDbm: -5.5, unleveled: 'high' })
+  })
+
+  it('5.2.17/5.2.18: SCPI kodu aileye göre (121 + uzunluk / 42)', () => {
+    expect(encodeScpi('6000', ':MN?')).toEqual([121, 4, 58, 77, 78, 63])
+    expect(encodeScpi('xg', ':MN?')).toEqual([42, 58, 77, 78, 63])
+    const r6000 = new Uint8Array(64)
+    r6000.set([121, 4, 58, 77, 78, 63, 0, 0, ...Buffer.from('SSG-6001RC')])
+    expect(decodeScpiReply('6000', r6000)).toBe('SSG-6001RC')
+    const rxg = new Uint8Array(64)
+    rxg.set([42, ...Buffer.from('SSG-15G-RC')])
+    expect(decodeScpiReply('xg', rxg)).toBe('SSG-15G-RC')
   })
 })
 
-describe('HidScpiConnection + SsgDriver (sahte HID)', () => {
-  it('tanır, ayarlar ve geri okur', async () => {
-    const backend = new FakeHidBackend(demoDevices())
-    const conn = new HidScpiConnection(backend, 'p1')
+describe('HidMclConnection + SsgDriver (sahte HID)', () => {
+  it('SSG-6000RC: tanır, ikili komutlarla ayarlar, kod 105 ile geri okur', async () => {
+    const devices = demoDevices()
+    const conn = new HidMclConnection(new FakeHidBackend(devices), 'p1')
     await conn.connect()
     const log: string[] = []
     conn.on('log', (e: { dir: string; line: string }) => log.push(`${e.dir} ${e.line}`))
-    const drv = new SsgDriver(conn)
-    const id = await drv.identify()
-    expect(id.model).toBe('SSG-6000RC')
-    expect(id.identity).toBe('Mini-Circuits SSG-6000RC · SN 11401230001 · FW C4')
-
-    await drv.setFrequency(2_412_000_000)
+    const drv = new SsgDriver(conn, '6000')
+    expect((await drv.identify()).identity).toBe('Mini-Circuits SSG-6000RC · SN 11401230001 · FW C4')
+    await drv.setFrequency(2_412_500_000)
     await drv.setPower(-7.5)
     await drv.setRfOutput(true)
-    expect(await drv.readState()).toEqual({ frequencyHz: 2_412_000_000, powerDbm: -7.5, outputOn: true })
-    expect(log).toContain('tx :FREQ:2412MHz')
-    await expect(drv.setPower(20)).rejects.toThrow(/reddetti/)
+    expect(await drv.readState()).toEqual({
+      frequencyHz: 2_412_500_000,
+      powerDbm: -7.5,
+      outputOn: true,
+      locked: true,
+      unleveled: null
+    })
+    // Cihaza giden paketler kılavuz biçiminde; Trigger Out kapalı
+    expect(devices[0].sim.received[0].slice(0, 7)).toEqual([101, 0, 0x8f, 0xcb, 0xd4, 0x20, 0])
+    expect(devices[0].sim.received[1].slice(0, 5)).toEqual([102, 1, 2, 238, 0])
+    expect(log).toContain('tx [101] frekans 2412.5 MHz')
+    expect(log).toContain('rx RF AÇIK · kilitli · 2412.5 MHz · -7.50 dBm')
+    expect(await drv.scpi(':PWR:RF?')).toBe('ON')
+    conn.disconnect()
+  })
+
+  it('SSG-15G-RC: frekans ASCII MHz ile gider, SCPI kod 42 ile', async () => {
+    const devices = demoDevices()
+    const conn = new HidMclConnection(new FakeHidBackend(devices), 'p2')
+    await conn.connect()
+    const drv = new SsgDriver(conn, 'xg')
+    await drv.setFrequency(12_345_678_901)
+    expect(String.fromCharCode(...devices[1].sim.received[0].slice(1, 18))).toBe('12345.678901\0\0\0\0\0')
+    expect((await drv.readState()).frequencyHz).toBe(12_345_678_901)
+    expect(await drv.scpi(':MN?')).toBe('SSG-15G-RC')
     conn.disconnect()
   })
 
   it('kablo çekilince close yayar; yanıtsız cihazda zaman aşımı sayar', async () => {
     const devices = demoDevices()
-    const backend = new FakeHidBackend(devices)
-    const conn = new HidScpiConnection(backend, 'p1', { timeoutMs: 50 })
+    const conn = new HidMclConnection(new FakeHidBackend(devices), 'p1', { timeoutMs: 50 })
     await conn.connect()
     let closed = false
     conn.on('close', () => (closed = true))
+    const drv = new SsgDriver(conn, '6000')
     devices[0].silent = true
-    await expect(conn.query(':FREQ?')).rejects.toThrow(/timeout/)
+    await expect(drv.readState()).rejects.toThrow(/timeout/)
     expect(conn.consecutiveTimeouts).toBe(1)
     devices[0].unplugged = true
-    await expect(conn.query(':FREQ?')).rejects.toThrow(/USB iletişim hatası/)
+    await expect(drv.readState()).rejects.toThrow(/USB iletişim hatası/)
     expect(closed).toBe(true)
     expect(conn.connected).toBe(false)
   })
 
   it('komutlar sırayla işlenir (eşzamanlı çağrılarda yanıtlar karışmaz)', async () => {
-    const backend = new FakeHidBackend(demoDevices())
-    const conn = new HidScpiConnection(backend, 'p2')
+    const conn = new HidMclConnection(new FakeHidBackend(demoDevices()), 'p2')
     await conn.connect()
-    const [mn, sn, fq] = await Promise.all([conn.query(':MN?'), conn.query(':SN?'), conn.query(':FREQ?')])
-    expect([mn, sn, fq]).toEqual(['MN=SSG-15G-RC', 'SN=12001230002', '10.000000'])
+    const drv = new SsgDriver(conn, 'xg')
+    const [id, st, mn] = await Promise.all([drv.identify(), drv.readState(), drv.scpi(':SN?')])
+    expect(id.model).toBe('SSG-15G-RC')
+    expect(st.frequencyHz).toBe(10e6)
+    expect(mn).toBe('12001230002')
     conn.disconnect()
   })
 
-  it('tarama: modelleri tanır, yanıtsız cihazı "tanınmadı" listeler, kullanımdakini açmaz', async () => {
+  it('tarama: kod 40/41 ile tanır, yanıtsız cihazı nedeniyle listeler, kullanımdakini açmaz', async () => {
     const devices = demoDevices()
     devices.push({ path: 'p3', productId: 0x12, sim: new SsgSim(SSG_6000RC_SPEC), silent: true })
-    const backend = new FakeHidBackend(devices)
     const inUse = new Map([
-      ['p2', { path: 'p2', productId: 0x22, model: 'SSG-15G-RC', serial: 'X', kind: 'ssg15grc' as const, inUse: true }]
+      ['p2', { path: 'p2', productId: 0x12, model: 'SSG-15G-RC', serial: 'X', kind: 'ssg15grc' as const, inUse: true }]
     ])
-    const found = await discoverMclDevices(backend, inUse, 30)
+    const found = await discoverMclDevices(new FakeHidBackend(devices), inUse, 30)
     expect(found).toEqual([
-      { path: 'p1', productId: 0x22, model: 'SSG-6000RC', serial: '11401230001', kind: 'ssg6000rc', inUse: false },
-      { path: 'p2', productId: 0x22, model: 'SSG-15G-RC', serial: 'X', kind: 'ssg15grc', inUse: true },
+      { path: 'p1', productId: 0x12, model: 'SSG-6000RC', serial: '11401230001', kind: 'ssg6000rc', inUse: false },
+      { path: 'p2', productId: 0x12, model: 'SSG-15G-RC', serial: 'X', kind: 'ssg15grc', inUse: true },
       {
         path: 'p3',
         productId: 0x12,
@@ -168,31 +182,20 @@ describe('HidScpiConnection + SsgDriver (sahte HID)', () => {
         serial: '',
         kind: null,
         inUse: false,
-        error: ':MN? yanıtsız: timeout: ":MN?" 30ms içinde yanıtlanmadı'
+        error: 'tanınamadı: timeout: kod 40 30ms içinde yanıtlanmadı'
       }
     ])
   })
 
-  it('tanılama raporu: arayüzler, SCPI yanıtları ve eski kodlara ham yanıt', async () => {
-    const devices = demoDevices()
-    devices.push({ path: 'p3', productId: 0x12, sim: new SsgSim(SSG_6000RC_SPEC), legacy: true })
-    const report = await diagnoseMcl(new FakeHidBackend(devices), new Map(), 30)
-    expect(report).toContain('Toplam HID arayüzü: 4; Mini-Circuits (VID 0x20CE ya da adı uyan): 3')
-    expect(report).toContain('#1 VID 0x20CE PID 0x0022 · "Mini-Circuits" "SSG-6000RC"')
-    expect(report).toContain(':MN? → "MN=SSG-6000RC"')
-    // Eski protokollü cihaz: kod 1'e ikili yanıt, kod 40 model adını döndürür
-    expect(report).toContain(':MN? → İKİLİ yanıt (SCPI değil): [02 9c 36 45 ff')
-    expect(report).toMatch(/kod 40 → \[28 53 53 47[^\]]*\] "SSG-6000RC"/)
-  })
-
-  it('ikili (eski protokol) yanıt veren cihaz bozuk model adıyla değil, nedeniyle listelenir', async () => {
-    const devices: FakeHidDevice[] = [
-      { path: 'p9', productId: 0x22, sim: new SsgSim(SSG_15G_RC_SPEC), legacy: true }
-    ]
-    const [d] = await discoverMclDevices(new FakeHidBackend(devices), new Map(), 30)
-    expect(d.model).toBe('')
-    expect(d.kind).toBeNull()
-    expect(d.error).toMatch(/:MN\? yanıtsız: SCPI yerine ikili yanıt \(eski USB protokolü\) \[02 9c 36 45 ff/)
+  it('tanılama raporu: model, seri, ürün yazılımı, durum ve modele uygun SCPI kodu', async () => {
+    const report = await diagnoseMcl(new FakeHidBackend(demoDevices()), new Map(), 30)
+    expect(report).toContain('Toplam HID arayüzü: 3; Mini-Circuits (VID 0x20CE ya da adı uyan): 2')
+    expect(report).toContain('[40] model adı → "SSG-6000RC"')
+    expect(report).toContain('[41] seri no → "11401230001"')
+    expect(report).toContain('[99] ürün yazılımı → "C4"')
+    expect(report).toContain('[105] durum → RF KAPALI · kilitli · 25 MHz · -65.00 dBm')
+    expect(report).toContain('SCPI :MN? [kod 121] → "SSG-6000RC"')
+    expect(report).toContain('SCPI :MN? [kod 42] → "SSG-15G-RC"')
   })
 
   it('tanılama raporu: hiç Mini-Circuits yoksa görülen üreticileri listeler', async () => {
@@ -251,13 +254,13 @@ describe('DeviceManager — sinyal üreteci (sahte HID)', () => {
     const [snap] = (await manager.listSnapshots()).filter((s) => s.id === id)
     expect(snap.state).toBe('connected')
     expect(snap.identity).toContain('SSG-15G-RC')
-    expect(snap.rf).toEqual({ frequencyHz: 10e6, powerDbm: -45, outputOn: false })
+    expect(snap.rf).toEqual({ frequencyHz: 10e6, powerDbm: -45, outputOn: false, locked: true, unleveled: null })
 
     await manager.setFrequency(id, 12.5e9)
     await manager.setPower(id, 3.25)
     await manager.setRfOutput(id, true)
     const s = await waitForSnapshot(manager, (x) => x.id === id && x.rf?.outputOn === true)
-    expect(s.rf).toEqual({ frequencyHz: 12.5e9, powerDbm: 3.25, outputOn: true })
+    expect(s.rf).toEqual({ frequencyHz: 12.5e9, powerDbm: 3.25, outputOn: true, locked: true, unleveled: null })
     expect(devices[1].sim.rfOn).toBe(true)
     expect(devices[0].sim.rfOn).toBe(false)
   })
@@ -318,8 +321,8 @@ describe('DeviceManager — sinyal üreteci (sahte HID)', () => {
   it('SCPI konsolu: ham komut yanıt döndürür, set sonrası durum tazelenir', async () => {
     const id = await add('ssg6000rc')
     await manager.connect(id)
-    expect(await manager.sendRaw(id, ':MN?')).toBe('MN=SSG-6000RC')
-    expect(await manager.sendRaw(id, ':PWR:RF:ON')).toBe('1 - Success')
+    expect(await manager.sendRaw(id, ':MN?')).toBe('SSG-6000RC')
+    expect(await manager.sendRaw(id, ':PWR:RF:ON')).toBe('1')
     expect((await manager.listSnapshots()).find((s) => s.id === id)!.rf?.outputOn).toBe(true)
   })
 

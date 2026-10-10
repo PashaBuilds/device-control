@@ -19,8 +19,9 @@ import { createDriver } from './drivers/cpx400dp'
 import { SmartLynqDriver } from './drivers/smartlynq'
 import type { PsuDriver } from './drivers/types'
 import { SsgDriver } from './drivers/ssg'
-import { HidScpiConnection } from './hid/connection'
-import { createNodeHidBackend, diagnoseMcl, discoverMclDevices, type HidBackend } from './hid/mcl'
+import { HidMclConnection } from './hid/connection'
+import { createNodeHidBackend, discoverMclDevices, type HidBackend } from './hid/mcl'
+import { diagnoseMcl } from './hid/diagnostics'
 import { Store } from './store'
 
 const LSR_OVP = 0b0100
@@ -50,7 +51,7 @@ interface ManagedDevice {
   tcf: TcfConnection | null
   probeDriver: SmartLynqDriver | null
   /** Sinyal üreteci (USB/HID) bağlantısı ve sürücüleri */
-  hid: HidScpiConnection | null
+  hid: HidMclConnection | null
   sgDriver: SsgDriver | null
   sgPollDriver: SsgDriver | null
   /** Bağlı USB cihazının tanımı (listUsbDevices'ta "kullanımda" göstermek için) */
@@ -74,6 +75,10 @@ interface ManagedDevice {
 
 function emptyChannel(): ChannelMeasurement {
   return { voltage: 0, current: 0, power: 0, outputOn: false, mode: 'off' }
+}
+
+function emptyRf(): RfState {
+  return { frequencyHz: 0, powerDbm: 0, outputOn: false, locked: null, unleveled: null }
 }
 
 function emptySetpoints(): ChannelSetpoints {
@@ -117,7 +122,7 @@ export class DeviceManager extends EventEmitter {
       sgDriver: null,
       sgPollDriver: null,
       usbInfo: null,
-      rf: info.category === 'signal-generator' ? { frequencyHz: 0, powerDbm: 0, outputOn: false } : null,
+      rf: info.category === 'signal-generator' ? emptyRf() : null,
       state: 'disconnected',
       identity: null,
       error: null,
@@ -445,7 +450,7 @@ export class DeviceManager extends EventEmitter {
       return fail(msg, new Error(msg))
     }
 
-    const conn = new HidScpiConnection(this.hidBackend, target.path)
+    const conn = new HidMclConnection(this.hidBackend, target.path)
     try {
       await conn.connect()
     } catch (err) {
@@ -453,8 +458,8 @@ export class DeviceManager extends EventEmitter {
     }
     dev.hid = conn
     dev.usbInfo = target
-    dev.sgDriver = new SsgDriver(conn)
-    dev.sgPollDriver = new SsgDriver(conn, 'poll')
+    dev.sgDriver = new SsgDriver(conn, info.rf!.usbSeries)
+    dev.sgPollDriver = new SsgDriver(conn, info.rf!.usbSeries, 'poll')
     conn.on('log', (e: { dir: 'tx' | 'rx'; line: string; source: 'user' | 'poll' }) =>
       this.emit('log', {
         deviceId: dev.config.id,
@@ -474,7 +479,7 @@ export class DeviceManager extends EventEmitter {
 
     try {
       dev.identity = (await dev.sgDriver.identify()).identity
-      this.mergeRf(dev, await dev.sgDriver.readState())
+      dev.rf = await dev.sgDriver.readState()
     } catch (err) {
       this.closeHid(dev)
       dev.error = `Cihaz yanıt vermiyor: ${(err as Error).message}`
@@ -508,16 +513,6 @@ export class DeviceManager extends EventEmitter {
       if (d !== except && d.hid && d.usbInfo) map.set(d.usbInfo.path, d.usbInfo)
     }
     return map
-  }
-
-  /** Okunan durumu uygular; okunamayan (null) alanlarda son bilinen değer kalır. */
-  private mergeRf(dev: ManagedDevice, s: { [K in keyof RfState]: RfState[K] | null }): void {
-    const cur = dev.rf ?? { frequencyHz: 0, powerDbm: 0, outputOn: false }
-    dev.rf = {
-      frequencyHz: s.frequencyHz ?? cur.frequencyHz,
-      powerDbm: s.powerDbm ?? cur.powerDbm,
-      outputOn: s.outputOn ?? cur.outputOn
-    }
   }
 
   private scheduleReconnect(dev: ManagedDevice): void {
@@ -638,7 +633,7 @@ export class DeviceManager extends EventEmitter {
     if (dev.pollBusy || !dev.sgPollDriver || !dev.hid?.connected) return
     dev.pollBusy = true
     try {
-      this.mergeRf(dev, await dev.sgPollDriver.readState())
+      dev.rf = await dev.sgPollDriver.readState()
       dev.pollCount++
       this.publish(dev)
     } catch {
@@ -807,7 +802,7 @@ export class DeviceManager extends EventEmitter {
   private async refreshRf(dev: ManagedDevice): Promise<void> {
     if (!dev.sgDriver) return
     try {
-      this.mergeRf(dev, await dev.sgDriver.readState())
+      dev.rf = await dev.sgDriver.readState()
     } catch {
       // bir sonraki yoklamada tazelenir
     }
@@ -829,8 +824,8 @@ export class DeviceManager extends EventEmitter {
   async sendRaw(id: string, command: string): Promise<string | null> {
     const dev = this.get(id)
     if (this.isSigGen(dev)) {
-      if (!dev.hid?.connected) throw new Error('Cihaz bağlı değil')
-      const reply = await dev.hid.query(command.trim())
+      if (!dev.sgDriver || !dev.hid?.connected) throw new Error('Cihaz bağlı değil')
+      const reply = await dev.sgDriver.scpi(command.trim())
       // Elle gönderilen set komutu durumu değiştirmiş olabilir
       if (!command.includes('?')) await this.refreshRf(dev)
       return reply

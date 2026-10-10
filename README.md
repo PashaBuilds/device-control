@@ -7,8 +7,8 @@ Desteklenen cihazlar:
 - **Keysight E36233A** çift kanallı güç kaynağı (2×30V/10A) — SCPI (E36200), TCP 5025
 - **Keysight N5745A** tek çıkışlı sistem güç kaynağı (30V/25A, 750W) — SCPI (N5700), TCP 5025
 - **Xilinx Hardware Server** (hw_server / SmartLynq DLC20-DLC30) — TCF, TCP 3121
-- **Mini-Circuits SSG-6000RC** sinyal üreteci (25–6000 MHz, −65…+14 dBm) — USB (HID), SCPI
-- **Mini-Circuits SSG-15G-RC** sinyal üreteci (10 MHz–15 GHz, −45…+10 dBm) — USB (HID), SCPI
+- **Mini-Circuits SSG-6000RC** sinyal üreteci (25–6000 MHz, −65…+14 dBm) — USB (HID)
+- **Mini-Circuits SSG-15G-RC** sinyal üreteci (10 MHz–15 GHz, −45…+10 dBm) — USB (HID)
 
 Mimari, yeni cihaz türlerinin *sürücü + panel* çifti eklenerek genişletilmesine göre
 tasarlandı; kenar çubuğunda **Güç Kaynakları**, **Sinyal Üreteçleri** ve **Debug Probları**
@@ -163,14 +163,20 @@ izleme modu yoktur; arayüz bu türde OCP alanını ve izleme anahtarını göst
 5. Cihaz Mini-Circuits'in kendi programı (ör. SSG GUI) tarafından açıkken aynı anda
    kullanılmamalı; yanıtlar iki program arasında karışabilir.
 
-Protokol: 64 baytlık HID raporu, bayt 0 = 1 (SCPI komutu), ardından ASCII komut
-(`:MN?`, `:SN?`, `:FREQ:2412.5MHz`, `:FREQ?`, `:PWR:-7.5`, `:PWR?`, `:PWR:RF:ON|OFF`,
-`:PWR:RF?`). SCPI konsolundan ham komut gönderilebilir.
+Protokol (Mini-Circuits Signal Generators Programming Manual C3, bölüm 5): 64 baytlık HID
+raporları, bayt 0 kesme kodu — 40 model, 41 seri no, 99 ürün yazılımı, 101 frekans, 102 güç,
+104 RF aç/kapat, 105 durum (RF, kilit, frekans, güç). Frekans SSG-6000RC'de 5 baytlık Hz,
+SSG-15G-RC'de ASCII MHz metni olarak gider. SCPI konsolu komutları USB üzerinden taşır
+(SSG-6000RC kod 121, SSG-15G-RC kod 42): `:FREQ?`, `:PWR?`, `:PWR:RF?`, `:MN?` …
 
-**Tanılama:** Ekleme penceresi "Mini-Circuits USB cihazı görünüyor ancak SCPI'ye yanıt
-vermedi" derse cihaz USB'de görünüyor ama bu komut biçimini konuşmuyor demektir (eski
-ürün yazılımı olabilir). Cihaz hiç listelenmiyorsa kabloyu/gücü ve Aygıt Yöneticisi'ndeki
-"HID uyumlu aygıt" girdisini kontrol edin.
+Panel, cihazın bildirdiği iki uyarıyı da gösterir: frekans kilitli değil (sentezleyici
+kilitlenemedi) ve istenen güç cihazın o frekanstaki sınırının dışında.
+
+**Tanılama:** Cihaz bulunamazsa Cihaz Ekle penceresindeki **Tanılama raporu** takılı
+Mini-Circuits arayüzlerini, açılıp açılmadıklarını ve yalnızca okuyan komutlara (model, seri,
+ürün yazılımı, durum) verdikleri yanıtları listeler; **Kopyala** ile gönderilebilir. Cihaz
+hiç listelenmiyorsa kabloyu/gücü ve Aygıt Yöneticisi'ndeki "HID uyumlu aygıt" girdisini
+kontrol edin.
 
 ## Saha kullanımı (Xilinx Hardware Server)
 

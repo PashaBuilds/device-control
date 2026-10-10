@@ -7,7 +7,7 @@ import { TopBar } from '../psu/TopBar'
 import { SetpointField } from '../psu/SetpointField'
 import { ScpiConsole } from '../ScpiConsole'
 
-const EMPTY_RF: RfState = { frequencyHz: 0, powerDbm: 0, outputOn: false }
+const EMPTY_RF: RfState = { frequencyHz: 0, powerDbm: 0, outputOn: false, locked: null, unleveled: null }
 
 /** Büyük gösterge için: ≥ 1 GHz ise GHz (kHz çözünürlük), değilse MHz. */
 function formatFreq(hz: number): { value: string; unit: string } {
@@ -101,6 +101,14 @@ export function SigGenPanel({ device }: { device: DeviceConfig }): React.JSX.Ele
                 {on ? tr.sigGen.rfOn : tr.sigGen.rfOff}
               </button>
             </div>
+
+            {connected && (rf.locked === false || rf.unleveled) && (
+              <div className="rf-warn" role="alert">
+                {rf.locked === false && <span>{tr.sigGen.unlocked}</span>}
+                {rf.unleveled === 'high' && <span>{tr.sigGen.unleveledHigh}</span>}
+                {rf.unleveled === 'low' && <span>{tr.sigGen.unleveledLow}</span>}
+              </div>
+            )}
 
             <div className="readouts">
               <div className={`readout volt${on ? '' : ' dim'}`}>
