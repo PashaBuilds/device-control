@@ -21,6 +21,7 @@
     "tools/simulator/model.ts",
     "tools/simulator/e36233a-model.ts",
     "tools/simulator/n5745a-model.ts",
-    "tools/simulator/ssg-model.ts"
+    "tools/simulator/ssg-model.ts",
+    "tools/simulator/hmp4040-model.ts"
   ]
 }

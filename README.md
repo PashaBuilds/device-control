@@ -6,6 +6,7 @@ Desteklenen cihazlar:
 - **Aim-TTi CPX400DP** çift kanallı güç kaynağı (2×60V/20A, 420W) — SCPI, TCP 9221
 - **Keysight E36233A** çift kanallı güç kaynağı (2×30V/10A) — SCPI (E36200), TCP 5025
 - **Keysight N5745A** tek çıkışlı sistem güç kaynağı (30V/25A, 750W) — SCPI (N5700), TCP 5025
+- **Rohde & Schwarz HMP4040** dört kanallı güç kaynağı (4×32V/10A, kanal başına 160W) — SCPI, TCP 5025
 - **Xilinx Hardware Server** (hw_server / SmartLynq DLC20-DLC30) — TCF, TCP 3121
 - **Mini-Circuits SSG-6000RC** sinyal üreteci (25–6000 MHz, −65…+14 dBm) — USB (HID)
 - **Mini-Circuits SSG-15G-RC** sinyal üreteci (10 MHz–15 GHz, −45…+10 dBm) — USB (HID)
@@ -67,6 +68,7 @@ Gerçek donanım olmadan geliştirme/test için gerçek protokolleri konuşan TC
 npm run sim          # CPX400DP (SCPI), 127.0.0.1:9221 (npm run sim -- 9222 ile port değişir)
 npm run sim:e36233a  # Keysight E36233A (SCPI), 127.0.0.1:5025
 npm run sim:n5745a   # Keysight N5745A (SCPI), 127.0.0.1:5026
+npm run sim:hmp4040  # Rohde & Schwarz HMP4040 (SCPI), 127.0.0.1:5027
 npm run sim:lynq     # Xilinx Hardware Server (TCF), 127.0.0.1:3121
 ```
 
@@ -150,6 +152,23 @@ izleme modu yoktur; arayüz bu türde OCP alanını ve izleme anahtarını göst
    OCP ayrı seviye değil, aç/kapattır ve uygulamada gösterilmez — gerekirse ön paneldeki
    OCP tuşuyla açılır; trip olursa uygulamada uyarı bandı çıkar ve sıfırlanabilir.
 
+## Saha kullanımı (Rohde & Schwarz HMP4040)
+
+1. **Ağ:** uygulama yalnızca **TCP 5025**'i (SCPI soketi) kullanır — güvenlik duvarında yalnızca
+   PC → cihaz yönünde bu port gerekir. İsteğe bağlı: TCP 80 (cihaz web sayfası, IP doğrulamak için).
+2. Cihazın arkasında Ethernet arayüz kartı (HO732, Ethernet/USB) olmalıdır; standart HO720 kartı
+   yalnızca USB/RS-232'dir. IP ayarı ön panelde **SETUP → Interface → Ethernet** altındadır
+   (varsayılan DHCP kapalı; sabit IP ya da DHCP seçilebilir). Port 5025'tir.
+3. Uygulamada **Cihaz Ekle** → tür Rohde & Schwarz HMP4040, IP ve port 5025.
+4. Bağlanınca uygulama cihazı **karma moda** (`SYST:MIX`) alır: uzaktan kontrol sürerken ön panel
+   de kullanılabilir kalır.
+5. Her kanalın gerilimi, akım limiti, OVP'si ve çıkışı ayrı ayrı ayarlanır. HMP'de çıkış iki
+   katmanlıdır (kanal etkin + ana çıkış); uygulamada bir kanalı açmak o kanalı etkinleştirip ana
+   çıkışı açar. Ana çıkış kapalıyken açılan kanal dışındaki "etkin" kanalların işareti kaldırılır,
+   böylece ön panelden etkin bırakılmış bir kanal istemeden açılmaz. **Tümünü Kapat** ana çıkışı kapatır.
+6. OCP ayrı bir seviye değil, akım limitinde açan elektronik sigortadır; uygulamada gösterilmez,
+   gerekirse ön panelden açılır. Sigorta ya da OVP tetiklenirse uyarı bandı çıkar.
+
 ## Saha kullanımı (Mini-Circuits SSG-6000RC / SSG-15G-RC, USB)
 
 1. Cihazı USB kablosuyla bilgisayara takın. Mini-Circuits cihazları HID sınıfındadır;
@@ -196,7 +215,8 @@ src/main      Electron ana süreç:
               - scpi/  ScpiConnection (TCP 9221, komut kuyruğu)
               - tcf/   TcfConnection (TCP 3121, NUL/EOM çerçeveleme)
               - hid/   Mini-Circuits USB (HID) çerçeveleme, tarama, HidScpiConnection (node-hid)
-              - drivers/  Cpx400dpDriver, E36233aDriver, SmartLynqDriver (Hardware Server),
+              - drivers/  Cpx400dpDriver, E36233aDriver, N5700Driver, Hmp4040Driver,
+                          SmartLynqDriver (Hardware Server),
                           SsgDriver (Mini-Circuits sinyal üreteci)
               - DeviceManager (yoklama, yeniden bağlanma, kalıcılık, kilit)
 src/preload   Tip güvenli IPC köprüsü (window.deviceApi)

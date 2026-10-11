@@ -27,7 +27,7 @@ interface ChartColors {
 
 /**
  * Grafik renkleri tema tokenlarından okunur (gerilim camgöbeği, akım amber);
- * tema değişince grafik yeniden kurulur. 2. kanal kesikli çizgiyle ayrışır.
+ * tema değişince grafik yeniden kurulur. Kanallar çizgi deseniyle ayrışır (2 kesikli, 3 noktalı, 4 kesik-noktalı).
  */
 function chartColors(): ChartColors {
   const css = getComputedStyle(document.documentElement)
@@ -42,6 +42,9 @@ function withAlpha(hex: string, alpha: number): string {
   return `rgba(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}, ${alpha})`
 }
 
+/** Kanal çizgi deseni: 1 düz, 2 kesikli, 3 noktalı, 4 kesik-noktalı (4 kanallı cihazlar). */
+const CHANNEL_DASH: Array<number[] | undefined> = [undefined, [6, 4], [2, 3], [10, 3, 2, 3]]
+
 function buildSeries(channelCount: number, c: ChartColors): uPlot.Series[] {
   const series: uPlot.Series[] = [{}]
   for (let ch = 1; ch <= channelCount; ch++) {
@@ -49,7 +52,7 @@ function buildSeries(channelCount: number, c: ChartColors): uPlot.Series[] {
       label: tr.chart.voltage(ch),
       stroke: c.volt,
       width: 1.6,
-      dash: ch === 2 ? [6, 4] : undefined,
+      dash: CHANNEL_DASH[ch - 1],
       // yalnızca düz çizgili 1. kanal alan dolgusu alır — okunaklılık korunur
       fill: ch === 1 ? withAlpha(c.volt, 0.07) : undefined,
       scale: 'V',
@@ -60,7 +63,7 @@ function buildSeries(channelCount: number, c: ChartColors): uPlot.Series[] {
       label: tr.chart.current(ch),
       stroke: c.amp,
       width: 1.6,
-      dash: ch === 2 ? [6, 4] : undefined,
+      dash: CHANNEL_DASH[ch - 1],
       fill: ch === 1 ? withAlpha(c.amp, 0.055) : undefined,
       scale: 'A',
       points: { show: false },

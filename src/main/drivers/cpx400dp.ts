@@ -3,6 +3,7 @@ import { ScpiConnection } from '../scpi/connection'
 import type { PsuDriver } from './types'
 import { E36233aDriver } from './e36233a'
 import { N5700Driver } from './n5700'
+import { Hmp4040Driver } from './hmp4040'
 
 /** `"V1 5.000"` / `"DELTAV1 0.500"` biçimindeki yanıtlardan sayıyı ayıklar. */
 export function parseNamedValue(resp: string): number {
@@ -135,6 +136,8 @@ export function createDriver(
       return new E36233aDriver(conn, source)
     case 'n5745a':
       return new N5700Driver(conn, source)
+    case 'hmp4040':
+      return new Hmp4040Driver(conn, source)
     default:
       throw new Error(`SCPI güç kaynağı sürücüsü olmayan cihaz türü: ${kind}`)
   }

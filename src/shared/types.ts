@@ -1,4 +1,11 @@
-export type DeviceKind = 'cpx400dp' | 'e36233a' | 'n5745a' | 'smartlynq' | 'ssg6000rc' | 'ssg15grc'
+export type DeviceKind =
+  | 'cpx400dp'
+  | 'e36233a'
+  | 'n5745a'
+  | 'hmp4040'
+  | 'smartlynq'
+  | 'ssg6000rc'
+  | 'ssg15grc'
 export type DeviceCategory = 'power-supply' | 'debug-probe' | 'signal-generator'
 /** Cihaza erişim yolu: ağ (IP:port) veya USB (HID). */
 export type DeviceTransport = 'tcp' | 'usb'
@@ -99,6 +106,22 @@ export const DEVICE_TYPES: DeviceTypeInfo[] = [
     hasOcpLevel: false,
     // REMOTE modda ön panel açık kalır (kilit yalnızca RLST RWLock): canlı yokla
     pollIntervalMs: 500
+  },
+  {
+    kind: 'hmp4040',
+    category: 'power-supply',
+    label: 'Rohde & Schwarz HMP4040',
+    channelCount: 4,
+    maxVoltage: 32,
+    maxCurrent: 10,
+    maxOvp: 32.5,
+    maxOcp: 0,
+    defaultPort: 5025,
+    hasTracking: false,
+    // HMP'de OCP ayrı seviye değil, akım limitinde açan elektronik sigorta (FUSE)
+    hasOcpLevel: false,
+    // 4 kanal × (seç + 4 sorgu): tur başına ~20 komut; SYST:MIX ile ön panel açık kalır
+    pollIntervalMs: 1000
   },
   {
     kind: 'smartlynq',

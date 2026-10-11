@@ -23,6 +23,7 @@ import { startCpx400dpSim, type SimHandle } from '../simulator/cpx400dp-sim'
 import { startSmartLynqSim, type SmartLynqSimHandle } from '../simulator/smartlynq-sim'
 import { startE36233aSim, type E36233aSimHandle } from '../simulator/e36233a-sim'
 import { startN5745aSim, type N5745aSimHandle } from '../simulator/n5745a-sim'
+import { startHmp4040Sim, type Hmp4040SimHandle } from '../simulator/hmp4040-sim'
 
 const ROOT = resolve(__dirname, '../..')
 const SHOTS = process.env.E2E_SHOTS_DIR || join(ROOT, '.data/e2e-shots')
@@ -93,6 +94,7 @@ async function main(): Promise<void> {
   const lynq: SmartLynqSimHandle = await startSmartLynqSim(3121)
   const keysight: E36233aSimHandle = await startE36233aSim(5025)
   const n5745a: N5745aSimHandle = await startN5745aSim(5026)
+  const hmp: Hmp4040SimHandle = await startHmp4040Sim(5027)
   sim1.sim.channels[0].loadOhms = 5 // 10V/5Ω = 2A
   keysight.sim.channels[0].loadOhms = 10 // 12V/10Ω = 1.2A
 
@@ -281,6 +283,42 @@ async function main(): Promise<void> {
     ok('Tek kanal arayüzü doğru: 1 kart, Tümünü Aç yok, OCP yok, tracking yok')
     await shot(page, '08-n5745a')
 
+    // Rohde & Schwarz HMP4040: 4 kanal, kanal başına ayar + çıkış
+    await addDevice(page, 'HMP PSU', 5027, 'hmp4040')
+    ok('HMP4040 eklendi')
+    const hConnect = await page.waitForSelector('.topbar .btn.primary')
+    await hConnect!.click()
+    await waitForText(page, 'ROHDE&SCHWARZ,HMP4040', 15000)
+    ok('HMP4040 bağlandı, kimlik doğrulandı')
+    await page.evaluate(async () => {
+      const api = (window as unknown as { deviceApi: import('../../src/shared/ipc').DeviceApi })
+        .deviceApi
+      const d = (await api.listDevices()).find((x) => x.kind === 'hmp4040')!
+      const sets: Array<[number, number, number]> = [
+        [1, 12, 5],
+        [2, 5.6, 8],
+        [3, 6, 3],
+        [4, 1, 1]
+      ]
+      for (const [ch, v, a] of sets) {
+        await api.setVoltage(d.id, ch, v)
+        await api.setCurrent(d.id, ch, a)
+      }
+      await api.setOutput(d.id, 3, true)
+    })
+    await waitForText(page, '0.60', 10000) // kanal 3: 6 V / 10 Ω
+    const hCards = await page.evaluate(() => ({
+      cards: document.querySelectorAll('.channel-card').length,
+      on: document.querySelectorAll('.channel-card.output-on').length
+    }))
+    if (hCards.cards !== 4) fail(`HMP4040'ta 4 kanal kartı beklenirdi, ${hCards.cards} bulundu`)
+    if (hCards.on !== 1) fail(`Yalnız kanal 3 açık olmalıydı, ${hCards.on} açık`)
+    if (hmp.sim.channels.map((c) => c.vSet).join(',') !== '12,5.6,6,1')
+      fail(`HMP kanal gerilimleri yanlış: ${hmp.sim.channels.map((c) => c.vSet).join(',')}`)
+    ok('HMP4040: 4 kanal ayrı ayrı ayarlandı, yalnız kanal 3 açık (6 V / 0.60 A)')
+    await new Promise((r) => setTimeout(r, 1200))
+    await shot(page, '08b-hmp4040')
+
     // Mini-Circuits SSG-6000RC (USB/HID, sahte arka uç): ekle + bağlan + frekans/güç/RF
     await addUsbDevice(page, 'SSG Sinyal', 'ssg6000rc', '11401230001')
     ok('SSG-6000RC eklendi (USB taramasında seri no ile seçildi)')
@@ -370,6 +408,7 @@ async function main(): Promise<void> {
     await lynq.close()
     await keysight.close()
     await n5745a.close()
+    await hmp.close()
   }
 }
 

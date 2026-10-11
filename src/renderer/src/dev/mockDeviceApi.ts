@@ -10,6 +10,7 @@
 import { Cpx400dpSim } from '../../../../tools/simulator/model'
 import { E36233aSim } from '../../../../tools/simulator/e36233a-model'
 import { N5745aSim } from '../../../../tools/simulator/n5745a-model'
+import { Hmp4040Sim } from '../../../../tools/simulator/hmp4040-model'
 import { SSG_15G_RC_SPEC, SSG_6000RC_SPEC, SsgSim } from '../../../../tools/simulator/ssg-model'
 import type {
   ChannelMeasurement,
@@ -29,8 +30,8 @@ const STORAGE_KEY = 'mock-devices'
 const LSR_OVP = 0b0100
 const LSR_OCP = 0b1000
 
-type PsuSim = Cpx400dpSim | E36233aSim | N5745aSim
-type PsuKind = 'cpx400dp' | 'e36233a' | 'n5745a'
+type PsuSim = Cpx400dpSim | E36233aSim | N5745aSim | Hmp4040Sim
+type PsuKind = 'cpx400dp' | 'e36233a' | 'n5745a' | 'hmp4040'
 
 interface MockDevice {
   config: DeviceConfig
@@ -126,6 +127,25 @@ const DIALECTS: Record<PsuKind, Dialect> = {
     errCmd: 'SYST:ERR?',
     tripResetCmd: 'OUTP:PROT:CLE',
     parse: numFirst
+  },
+  // HMP: komutlar seçili kanala gider — satırlar "\n" ile ayrılıp sırayla işlenir
+  hmp4040: {
+    measV: (ch) => `INST:NSEL ${ch}\nMEAS:VOLT?`,
+    measI: (ch) => `INST:NSEL ${ch}\nMEAS:CURR?`,
+    outQ: (ch) => `INST:NSEL ${ch}\nOUTP?`,
+    vGet: (ch) => `INST:NSEL ${ch}\nVOLT?`,
+    iGet: (ch) => `INST:NSEL ${ch}\nCURR?`,
+    ovpGet: (ch) => `INST:NSEL ${ch}\nVOLT:PROT?`,
+    vSet: (ch, v) => `INST:NSEL ${ch}\nVOLT ${v.toFixed(3)}`,
+    iSet: (ch, a) => `INST:NSEL ${ch}\nCURR ${a.toFixed(4)}`,
+    ovpSet: (ch, v) => `INST:NSEL ${ch}\nVOLT:PROT ${v.toFixed(2)}`,
+    ocpSet: (ch) => `INST:NSEL ${ch}\nFUSE ON`,
+    out: (ch, on) => `INST:NSEL ${ch}\n${on ? 'OUTP ON' : 'OUTP:SEL OFF'}`,
+    all: (on) =>
+      on ? [1, 2, 3, 4].map((c) => `INST:NSEL ${c}\nOUTP:SEL ON`).join('\n') + '\nOUTP:GEN ON' : 'OUTP:GEN OFF',
+    errCmd: 'SYST:ERR?',
+    tripResetCmd: [1, 2, 3, 4].map((c) => `INST:NSEL ${c}\nVOLT:PROT:CLE`).join('\n'),
+    parse: numFirst
   }
 }
 
@@ -175,6 +195,11 @@ function createMock(config: DeviceConfig): MockDevice {
   if (config.kind === 'smartlynq') {
     return { ...base, sim: null }
   }
+  if (config.kind === 'hmp4040') {
+    const sim = new Hmp4040Sim()
+    ;[12, 6, 4, 20].forEach((ohm, i) => sim.handle(`SIM:LOAD${i + 1} ${ohm}`))
+    return { ...base, sim }
+  }
   if (config.kind === 'n5745a') {
     const sim = new N5745aSim()
     sim.handle('CURR 5')
@@ -196,6 +221,12 @@ function createMock(config: DeviceConfig): MockDevice {
 for (const cfg of loadConfigs()) devices.set(cfg.id, createMock(cfg))
 
 function ask(dev: MockDevice, cmd: string, source: 'user' | 'poll' = 'user'): string | null {
+  // Çok satırlı komut (HMP: kanal seç + komut): satırları sırayla işle, son yanıtı döndür
+  if (cmd.includes('\n')) {
+    let last: string | null = null
+    for (const line of cmd.split('\n')) last = ask(dev, line, source)
+    return last
+  }
   const resp = dev.ssg ? dev.ssg.handle(cmd) : dev.sim ? dev.sim.handle(cmd) : null
   if (resp === null && !dev.sim) return null
   const ts = Date.now()
@@ -315,6 +346,12 @@ function pollTrips(dev: MockDevice): void {
 
 /** Kanal için trip bitlerini türe göre okur (CPX: LSR; Keysight: TRIP? sorguları). */
 function readLsrBits(dev: MockDevice, ch: number): number {
+  if (dev.config.kind === 'hmp4040') {
+    let bits = 0
+    if (ask(dev, `INST:NSEL ${ch}\nVOLT:PROT:TRIP?`, 'poll') === '1') bits |= LSR_OVP
+    if (ask(dev, `INST:NSEL ${ch}\nFUSE:TRIP?`, 'poll') === '1') bits |= LSR_OCP
+    return bits
+  }
   if (dev.config.kind === 'n5745a') {
     const c = numFirst(ask(dev, 'STAT:QUES:COND?', 'poll'))
     return (c & 1 ? LSR_OVP : 0) | (c & 2 ? LSR_OCP : 0)
