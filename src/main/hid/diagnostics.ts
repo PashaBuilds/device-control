@@ -7,6 +7,8 @@ import {
   isPrintable,
   kindForModel,
   mclRequest,
+  openWithDeadline,
+  closeQuietly,
   type HidBackend,
   type HidDeviceEntry,
   type HidDeviceHandle
@@ -64,7 +66,7 @@ export async function diagnoseMcl(
     }
     let handle: HidDeviceHandle | null = null
     try {
-      handle = await backend.open(d.path)
+      handle = await openWithDeadline(backend, d.path)
       out.push('   açıldı ✓')
     } catch (err) {
       out.push(`   AÇILAMADI: ${(err as Error).message}`)
@@ -106,7 +108,7 @@ export async function diagnoseMcl(
         out.push('   SCPI denenmedi (model tanınmadı)')
       }
     } finally {
-      await handle.close().catch(() => undefined)
+      await closeQuietly(handle)
     }
   }
   return out.join('\n')

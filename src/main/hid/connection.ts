@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import type { LogSource } from '@shared/types'
-import { MclTimeoutError, mclRequest, type HidBackend, type HidDeviceHandle } from './mcl'
+import { MclTimeoutError, closeQuietly, mclRequest, openWithDeadline, type HidBackend, type HidDeviceHandle } from './mcl'
 
 export interface HidMclConnectionOptions {
   timeoutMs?: number
@@ -44,7 +44,7 @@ export class HidMclConnection extends EventEmitter {
 
   async connect(): Promise<void> {
     if (this._connected) return
-    this.handle = await this.backend.open(this.path)
+    this.handle = await openWithDeadline(this.backend, this.path)
     this._connected = true
   }
 
@@ -52,7 +52,7 @@ export class HidMclConnection extends EventEmitter {
     const handle = this.handle
     this.handle = null
     this._connected = false
-    void handle?.close().catch(() => undefined)
+    void closeQuietly(handle)
   }
 
   /** Komut raporunu gönderir, yanıt raporunu döndürür. */

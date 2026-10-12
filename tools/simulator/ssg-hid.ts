@@ -13,9 +13,11 @@ export interface FakeHidDevice {
   path: string
   productId: number
   sim: SsgSim
-  /** true: hiçbir rapora yanıt vermez */
+  /** true: hiçbir rapora yanıt vermez (ör. güç gitti ama USB görünür, ya da açılıyor) */
   silent?: boolean
   unplugged?: boolean
+  /** true: okuma/yazma çağrıları hiç dönmez (sürücü/işletim sistemi takılması taklidi) */
+  hang?: boolean
 }
 
 class FakeHandle implements HidDeviceHandle {
@@ -31,6 +33,7 @@ class FakeHandle implements HidDeviceHandle {
   }
 
   async write(data: Buffer): Promise<void> {
+    if (this.dev.hang) return new Promise<void>(() => undefined)
     this.check()
     // data[0] rapor kimliği (0), data[1..64] rapor
     if (this.dev.silent) return
@@ -39,6 +42,7 @@ class FakeHandle implements HidDeviceHandle {
   }
 
   async read(timeoutMs: number): Promise<Uint8Array | null> {
+    if (this.dev.hang) return new Promise<Uint8Array | null>(() => undefined)
     this.check()
     if (this.inbox.length === 0 && timeoutMs > 0) {
       await new Promise<void>((resolve) => {

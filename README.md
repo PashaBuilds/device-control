@@ -181,6 +181,10 @@ izleme modu yoktur; arayüz bu türde OCP alanını ve izleme anahtarını göst
    açar/kapatır. Ayar kilidi frekans/gücü korur, RF düğmesi çalışmaya devam eder.
 5. Cihaz Mini-Circuits'in kendi programı (ör. SSG GUI) tarafından açıkken aynı anda
    kullanılmamalı; yanıtlar iki program arasında karışabilir.
+6. **Kopma ve geri gelme:** kablo çıkarılır ya da cihazın gücü giderse panel "Yeniden
+   bağlanıyor…" durumuna geçer ve uygulama cihazı birkaç saniyede bir arar; cihaz takılınca /
+   açılınca kendiliğinden bağlanır, kaydı silip eklemek gerekmez. Cihaz takılı değilken
+   **Bağlan**'a basılırsa da aynı şekilde beklenir. Aramayı **Bağlantıyı Kes** durdurur.
 
 Protokol (Mini-Circuits Signal Generators Programming Manual C3, bölüm 5): 64 baytlık HID
 raporları, bayt 0 kesme kodu — 40 model, 41 seri no, 99 ürün yazılımı, 101 frekans, 102 güç,

@@ -172,6 +172,50 @@ export function createNodeHidBackend(): HidBackend {
 
 // ---- İstek/yanıt ----
 
+/**
+ * USB sürücü çağrısı (aç/oku/yaz/kapat) süresinde dönmedi. Cihaz güç kaybederken ya da
+ * çıkarılırken işletim sistemi tarafında takılan çağrılar kuyruğu sonsuza dek kilitlemesin
+ * diye her çağrı süre sınırıyla beklenir; bu hata G/Ç hatası sayılır (bağlantı kapanır,
+ * yeniden bağlanma başlar). Cihazın kendisinin yanıt vermemesi ise `MclTimeoutError`'dur.
+ */
+export class HidStallError extends Error {
+  constructor(label: string, ms: number) {
+    super(`USB sürücüsü yanıt vermiyor (${label}, ${ms} ms)`)
+    this.name = 'HidStallError'
+  }
+}
+
+/** Sürücü çağrısını süre sınırıyla bekler; aşılırsa `HidStallError`. */
+export function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new HidStallError(label, ms)), ms)
+    p.then(
+      (v) => {
+        clearTimeout(t)
+        resolve(v)
+      },
+      (e) => {
+        clearTimeout(t)
+        reject(e)
+      }
+    )
+  })
+}
+
+/** Sürücü çağrısı payı: okumanın kendi bekleme süresinin üstüne eklenen tampon. */
+const DRIVER_SLACK_MS = 1000
+
+/** Aygıtı süre sınırıyla açar. */
+export function openWithDeadline(backend: HidBackend, path: string): Promise<HidDeviceHandle> {
+  return withDeadline(backend.open(path), 2000, 'aç')
+}
+
+/** Aygıtı kapatır; takılırsa ya da hata verirse beklemez (eski tutamaç bırakılır). */
+export async function closeQuietly(handle: HidDeviceHandle | null): Promise<void> {
+  if (!handle) return
+  await withDeadline(handle.close(), DRIVER_SLACK_MS, 'kapat').catch(() => undefined)
+}
+
 export class MclTimeoutError extends Error {
   constructor(label: string, timeoutMs: number) {
     super(`timeout: ${label} ${timeoutMs}ms içinde yanıtlanmadı`)
@@ -189,16 +233,18 @@ export async function mclRequest(
   body: ArrayLike<number>,
   timeoutMs: number
 ): Promise<Uint8Array> {
+  const read = (ms: number): Promise<Uint8Array | null> =>
+    withDeadline(handle.read(ms), ms + DRIVER_SLACK_MS, 'oku')
   for (let i = 0; i < 8; i++) {
-    if (!(await handle.read(0))) break
+    if (!(await read(0))) break
   }
   const code = body[0]
-  await handle.write(encodeReport(body))
+  await withDeadline(handle.write(encodeReport(body)), DRIVER_SLACK_MS, 'yaz')
   const deadline = Date.now() + timeoutMs
   for (;;) {
     const remaining = deadline - Date.now()
     if (remaining <= 0) throw new MclTimeoutError(`kod ${code}`, timeoutMs)
-    const data = await handle.read(Math.min(remaining, 250))
+    const data = await read(Math.min(remaining, 250))
     if (data && data[0] === code) return data
   }
 }
@@ -239,7 +285,7 @@ export async function discoverMclDevices(
     let handle: HidDeviceHandle | null = null
     let step = 'açılamadı'
     try {
-      handle = await backend.open(entry.path)
+      handle = await openWithDeadline(backend, entry.path)
       step = 'tanınamadı'
       const { model, serial } = await identifyMcl(handle, timeoutMs)
       found.push({
@@ -263,7 +309,7 @@ export async function discoverMclDevices(
         error: `${step}: ${(err as Error).message}`
       })
     } finally {
-      await handle?.close().catch(() => undefined)
+      await closeQuietly(handle)
     }
   }
   // Aynı cihaz birden çok HID yoluyla görünebilir: seri numarasına göre tekilleştir

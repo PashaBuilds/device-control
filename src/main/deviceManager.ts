@@ -416,14 +416,12 @@ export class DeviceManager extends EventEmitter {
     dev.error = null
     this.publish(dev)
 
+    // USB cihazı bulunamaz / açılamaz / yanıt vermezse (kablo çıkık, güç yok, açılıyor)
+    // vazgeçilmez: hata gösterilir ve arka planda aranmaya devam edilir; cihaz gelince
+    // kendiliğinden bağlanır. "Bağlantıyı Kes" aramayı durdurur.
     const fail = (message: string, err: unknown): never => {
-      dev.error = message
-      if (phase === 'reconnecting') {
-        this.scheduleReconnect(dev)
-      } else {
-        dev.state = 'error'
-        this.publish(dev)
-      }
+      dev.error = `${message} — cihaz gelince otomatik bağlanılacak`
+      this.scheduleReconnect(dev)
       throw err instanceof Error ? err : new Error(String(err))
     }
 
@@ -482,10 +480,7 @@ export class DeviceManager extends EventEmitter {
       dev.rf = await dev.sgDriver.readState()
     } catch (err) {
       this.closeHid(dev)
-      dev.error = `Cihaz yanıt vermiyor: ${(err as Error).message}`
-      dev.state = 'error'
-      this.publish(dev)
-      throw err instanceof Error ? err : new Error(String(err))
+      return fail(`Cihaz yanıt vermiyor: ${(err as Error).message}`, err)
     }
 
     dev.state = 'connected'
@@ -523,7 +518,9 @@ export class DeviceManager extends EventEmitter {
       dev.reconnectTimer = null
       this.establish(dev, 'reconnecting').catch(() => undefined)
     }, dev.reconnectDelayMs)
-    dev.reconnectDelayMs = Math.min(dev.reconnectDelayMs * 2, 15000)
+    // USB'de yeniden arama ucuzdur ve kullanıcı cihazı takınca hemen görmek ister
+    const maxDelayMs = this.isSigGen(dev) ? 3000 : 15000
+    dev.reconnectDelayMs = Math.min(dev.reconnectDelayMs * 2, maxDelayMs)
   }
 
   async disconnect(id: string): Promise<void> {
