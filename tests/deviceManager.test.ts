@@ -353,3 +353,29 @@ describe('DeviceManager (simülatöre karşı)', () => {
     expect((await manager.listDevices())[0].id).toBe(id)
   })
 })
+
+describe('IPv4 adresinde baştaki sıfırlar', () => {
+  it('normalizeHost sıfır dolgulu IP’yi düzeltir, sunucu adına dokunmaz', async () => {
+    const { normalizeHost } = await import('../src/shared/types')
+    expect(normalizeHost('192.168.010.010')).toBe('192.168.10.10')
+    expect(normalizeHost(' 010.000.001.200 ')).toBe('10.0.1.200')
+    expect(normalizeHost('192.168.1.50')).toBe('192.168.1.50')
+    expect(normalizeHost('hmp-lab01.local')).toBe('hmp-lab01.local')
+  })
+
+  it('kayıt sıfırsız saklanır ve sıfırlı eski kayıt da doğru adrese bağlanır', async () => {
+    const sim = await startCpx400dpSim(0)
+    const dir = mkdtempSync(join(tmpdir(), 'dc-ip0-'))
+    const manager = new DeviceManager({ dataDir: dir, pollIntervalMs: 50 })
+    try {
+      const cfg = await manager.addDevice({ name: 'P', kind: 'cpx400dp', host: '127.000.000.001', port: sim.port })
+      expect(cfg.host).toBe('127.0.0.1')
+      await manager.connect(cfg.id)
+      expect((await manager.listSnapshots())[0].state).toBe('connected')
+    } finally {
+      await manager.dispose()
+      await sim.close()
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})

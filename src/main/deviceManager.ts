@@ -12,7 +12,7 @@ import type {
   TripInfo,
   UsbDeviceInfo
 } from '@shared/types'
-import { deviceTypeInfo } from '@shared/types'
+import { deviceTypeInfo, normalizeHost } from '@shared/types'
 import { ScpiConnection } from './scpi/connection'
 import { TcfConnection } from './tcf/connection'
 import { createDriver } from './drivers/cpx400dp'
@@ -231,7 +231,7 @@ export class DeviceManager extends EventEmitter {
 
   async addDevice(cfg: Omit<DeviceConfig, 'id'>): Promise<DeviceConfig> {
     deviceTypeInfo(cfg.kind) // tür doğrulaması
-    const config: DeviceConfig = { ...cfg, id: randomUUID() }
+    const config: DeviceConfig = { ...cfg, host: normalizeHost(cfg.host), id: randomUUID() }
     this.devices.set(config.id, this.createManaged(config))
     this.persist()
     this.publish(this.get(config.id))
@@ -241,10 +241,10 @@ export class DeviceManager extends EventEmitter {
   async updateDevice(cfg: DeviceConfig): Promise<void> {
     const dev = this.get(cfg.id)
     const addressChanged =
-      dev.config.host !== cfg.host ||
+      normalizeHost(dev.config.host) !== normalizeHost(cfg.host) ||
       dev.config.port !== cfg.port ||
       (dev.config.usbSerial ?? '') !== (cfg.usbSerial ?? '')
-    dev.config = { ...cfg }
+    dev.config = { ...cfg, host: normalizeHost(cfg.host) }
     this.persist()
     if (addressChanged && dev.state !== 'disconnected') {
       await this.disconnect(cfg.id)
@@ -282,7 +282,7 @@ export class DeviceManager extends EventEmitter {
     dev.error = null
     this.publish(dev)
 
-    const conn = new ScpiConnection(dev.config.host, dev.config.port, {
+    const conn = new ScpiConnection(normalizeHost(dev.config.host), dev.config.port, {
       idleCommand: deviceTypeInfo(dev.config.kind).idleCommand
     })
     try {
@@ -353,7 +353,7 @@ export class DeviceManager extends EventEmitter {
     dev.error = null
     this.publish(dev)
 
-    const tcf = new TcfConnection(dev.config.host, dev.config.port)
+    const tcf = new TcfConnection(normalizeHost(dev.config.host), dev.config.port)
     tcf.on('log', (e: { dir: 'tx' | 'rx'; line: string; source: 'user' | 'poll' }) =>
       this.emit('log', {
         deviceId: dev.config.id,

@@ -156,17 +156,23 @@ izleme modu yoktur; arayüz bu türde OCP alanını ve izleme anahtarını göst
 
 1. **Ağ:** uygulama yalnızca **TCP 5025**'i (SCPI soketi) kullanır — güvenlik duvarında yalnızca
    PC → cihaz yönünde bu port gerekir. İsteğe bağlı: TCP 80 (cihaz web sayfası, IP doğrulamak için).
-2. Cihazın arkasında Ethernet arayüz kartı (HO732, Ethernet/USB) olmalıdır; standart HO720 kartı
-   yalnızca USB/RS-232'dir. IP ayarı ön panelde **SETUP → Interface → Ethernet** altındadır
-   (varsayılan DHCP kapalı; sabit IP ya da DHCP seçilebilir). Port 5025'tir.
-3. Uygulamada **Cihaz Ekle** → tür Rohde & Schwarz HMP4040, IP ve port 5025.
-4. Bağlanınca uygulama cihazı **karma moda** (`SYST:MIX`) alır: uzaktan kontrol sürerken ön panel
+2. Cihazın arkasında Ethernet arayüz kartı (HO730 / HO732, Ethernet/USB) olmalıdır; standart
+   HO720 kartı yalnızca USB/RS-232'dir. IP ayarı: **MENU → INTERFACE → ETHERNET → SETTINGS**
+   (IP, alt ağ maskesi, SCPI portu — 5025). DHCP seçilip sunucu bulunamazsa menünün açılması
+   ~2 dk sürer; APIPA (169.254.x.x) desteklenmez.
+3. **Doğrudan kabloyla bağlantı:** PC'nin Ethernet kartına aynı alt ağdan sabit IP verin (ör. cihaz
+   192.168.10.10 ise PC 192.168.10.20, maske 255.255.255.0, ağ geçidi boş); `ping` ile doğrulayın.
+   Cihazın web sayfası (`http://<ip>`) LAN bilgilerini gösterir; MAC adresi için `arp -a` de kullanılabilir.
+4. Uygulamada **Cihaz Ekle** → tür Rohde & Schwarz HMP4040, IP ve port 5025. Cihaz IP'yi sıfır
+   dolgulu gösterir (192.168.010.010); uygulama baştaki sıfırları kendisi atar — Windows bu yazımı
+   aksi halde sekizlik sayı sanıp 192.168.8.8'e bağlanmaya çalışırdı.
+5. Bağlanınca uygulama cihazı **karma moda** (`SYST:MIX`) alır: uzaktan kontrol sürerken ön panel
    de kullanılabilir kalır.
-5. Her kanalın gerilimi, akım limiti, OVP'si ve çıkışı ayrı ayrı ayarlanır. HMP'de çıkış iki
+6. Her kanalın gerilimi, akım limiti, OVP'si ve çıkışı ayrı ayrı ayarlanır. HMP'de çıkış iki
    katmanlıdır (kanal etkin + ana çıkış); uygulamada bir kanalı açmak o kanalı etkinleştirip ana
    çıkışı açar. Ana çıkış kapalıyken açılan kanal dışındaki "etkin" kanalların işareti kaldırılır,
    böylece ön panelden etkin bırakılmış bir kanal istemeden açılmaz. **Tümünü Kapat** ana çıkışı kapatır.
-6. OCP ayrı bir seviye değil, akım limitinde açan elektronik sigortadır; uygulamada gösterilmez,
+7. OCP ayrı bir seviye değil, akım limitinde açan elektronik sigortadır; uygulamada gösterilmez,
    gerekirse ön panelden açılır. Sigorta ya da OVP tetiklenirse uyarı bandı çıkar.
 
 ## Saha kullanımı (Mini-Circuits SSG-6000RC / SSG-15G-RC, USB)

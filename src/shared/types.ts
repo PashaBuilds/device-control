@@ -219,6 +219,21 @@ export interface DeviceConfig {
   locked?: boolean
 }
 
+/**
+ * IPv4 adresindeki baştaki sıfırları atar: "192.168.010.010" → "192.168.10.10".
+ * Bazı cihazlar (ör. HMP4040) IP'yi sıfır dolgulu gösterir; Windows/Node ise baştaki
+ * sıfırlı bölümü sekizlik sayı sayar ve bu adresi 192.168.8.8 diye çözer.
+ * IP olmayan sunucu adları aynen döner.
+ */
+export function normalizeHost(host: string): string {
+  const h = host.trim()
+  if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(h)) return h
+  return h
+    .split('.')
+    .map((p) => String(Number(p)))
+    .join('.')
+}
+
 /** Kenar çubuğu / başlıkta gösterilen adres: "IP:port" veya "USB · SN …". */
 export function deviceAddress(cfg: Pick<DeviceConfig, 'kind' | 'host' | 'port' | 'usbSerial'>): string {
   if (transportOf(cfg.kind) === 'usb') {

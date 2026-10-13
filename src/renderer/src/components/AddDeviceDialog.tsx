@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   DEVICE_TYPES,
+  normalizeHost,
   type DeviceCategory,
   type DeviceKind,
   type UsbDeviceInfo
@@ -108,7 +109,7 @@ export function AddDeviceDialog({
     e.preventDefault()
     const errs: typeof errors = {}
     const trimmedName = name.trim()
-    const trimmedHost = host.trim()
+    const trimmedHost = normalizeHost(host)
     const portNum = Number(port)
     if (!trimmedName) errs.name = tr.addDialog.errors.nameRequired
     if (!isUsb) {
